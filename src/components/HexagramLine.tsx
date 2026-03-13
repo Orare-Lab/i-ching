@@ -25,7 +25,7 @@ export function HexagramLine({ value, index }: HexagramLineProps) {
       transition={{ delay: index * 0.1, duration: 0.5, ease: "easeOut" }}
       className="flex items-center justify-center gap-4 sm:gap-6 w-full max-w-[280px] sm:max-w-[320px] my-1.5 sm:my-2 group"
     >
-      <div className="text-zinc-400 font-serif text-sm sm:text-base w-8 sm:w-10 text-right opacity-80 group-hover:opacity-100 transition-opacity tracking-widest">
+      <div className="text-stone-500 font-serif text-sm sm:text-base w-8 sm:w-10 text-right opacity-80 group-hover:opacity-100 transition-opacity tracking-widest">
         {label}
       </div>
       
@@ -33,17 +33,17 @@ export function HexagramLine({ value, index }: HexagramLineProps) {
         {isYang ? (
           <div className={cn(
             "w-full h-3 sm:h-4 transition-all duration-500",
-            isMoving ? "bg-amber-500 shadow-[0_0_15px_rgba(245,158,11,0.5)]" : "bg-zinc-300 shadow-[0_0_10px_rgba(255,255,255,0.1)]"
+            isMoving ? "bg-[#8b2b22] shadow-[0_0_15px_rgba(139,43,34,0.4)]" : "bg-stone-700 shadow-sm"
           )} />
         ) : (
           <div className="w-full h-3 sm:h-4 flex justify-between">
             <div className={cn(
               "w-[42%] h-full transition-all duration-500",
-              isMoving ? "bg-amber-500 shadow-[0_0_15px_rgba(245,158,11,0.5)]" : "bg-zinc-300 shadow-[0_0_10px_rgba(255,255,255,0.1)]"
+              isMoving ? "bg-[#8b2b22] shadow-[0_0_15px_rgba(139,43,34,0.4)]" : "bg-stone-700 shadow-sm"
             )} />
             <div className={cn(
               "w-[42%] h-full transition-all duration-500",
-              isMoving ? "bg-amber-500 shadow-[0_0_15px_rgba(245,158,11,0.5)]" : "bg-zinc-300 shadow-[0_0_10px_rgba(255,255,255,0.1)]"
+              isMoving ? "bg-[#8b2b22] shadow-[0_0_15px_rgba(139,43,34,0.4)]" : "bg-stone-700 shadow-sm"
             )} />
           </div>
         )}
@@ -51,7 +51,7 @@ export function HexagramLine({ value, index }: HexagramLineProps) {
 
       <div className={cn(
         "text-base sm:text-lg w-6 sm:w-8 font-serif font-bold transition-colors duration-500 text-left",
-        isMoving ? "text-amber-500" : "text-transparent"
+        isMoving ? "text-[#8b2b22]" : "text-transparent"
       )}>
         {isMoving && (value === 9 ? "○" : "×")}
       </div>

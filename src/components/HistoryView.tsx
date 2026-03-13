@@ -14,7 +14,7 @@ export function HistoryView({ history, onDelete }: HistoryViewProps) {
 
   if (history.length === 0) {
     return (
-      <div className="flex flex-col items-center justify-center py-20 text-zinc-500">
+      <div className="flex flex-col items-center justify-center py-20 text-stone-500">
         <p className="font-serif text-lg tracking-widest">暂无解卦记录</p>
       </div>
     );
@@ -32,18 +32,18 @@ export function HistoryView({ history, onDelete }: HistoryViewProps) {
         return (
           <div key={record.id} className="glass-panel rounded-3xl overflow-hidden transition-all">
             <div 
-              className="p-6 sm:p-8 cursor-pointer hover:bg-white/5 transition-colors flex flex-col sm:flex-row sm:items-center justify-between gap-4"
+              className="p-6 sm:p-8 cursor-pointer hover:bg-stone-200/50 transition-colors flex flex-col sm:flex-row sm:items-center justify-between gap-4"
               onClick={() => setExpandedId(isExpanded ? null : record.id)}
             >
               <div className="space-y-2 flex-1">
-                <div className="flex items-center gap-3 text-sm text-zinc-500">
+                <div className="flex items-center gap-3 text-sm text-stone-500">
                   <span>{date}</span>
-                  <span className="w-1 h-1 rounded-full bg-zinc-700"></span>
-                  <span className="text-amber-500/80">
+                  <span className="w-1 h-1 rounded-full bg-stone-400"></span>
+                  <span className="text-[#8b2b22]/80">
                     {record.originalName} {record.movingLines.length > 0 ? `→ ${record.changedName}` : '(无变卦)'}
                   </span>
                 </div>
-                <h3 className="text-lg font-serif text-zinc-200">
+                <h3 className="text-lg font-serif text-stone-900">
                   {record.question}
                 </h3>
               </div>
@@ -54,12 +54,12 @@ export function HistoryView({ history, onDelete }: HistoryViewProps) {
                     e.stopPropagation();
                     onDelete(record.id);
                   }}
-                  className="p-2 text-zinc-500 hover:text-red-400 hover:bg-red-400/10 rounded-full transition-colors"
+                  className="p-2 text-stone-400 hover:text-red-600 hover:bg-red-600/10 rounded-full transition-colors"
                   title="删除记录"
                 >
                   <Trash2 className="w-4 h-4" />
                 </button>
-                <div className="p-2 text-zinc-400">
+                <div className="p-2 text-stone-400">
                   {isExpanded ? <ChevronUp className="w-5 h-5" /> : <ChevronDown className="w-5 h-5" />}
                 </div>
               </div>
@@ -71,17 +71,17 @@ export function HistoryView({ history, onDelete }: HistoryViewProps) {
                   initial={{ height: 0, opacity: 0 }}
                   animate={{ height: "auto", opacity: 1 }}
                   exit={{ height: 0, opacity: 0 }}
-                  className="border-t border-white/5"
+                  className="border-t border-stone-200"
                 >
-                  <div className="p-6 sm:p-8 bg-black/20">
+                  <div className="p-6 sm:p-8 bg-white/60">
                     <div className="flex gap-2 mb-6 flex-wrap">
                       {record.lines.map((line, i) => (
-                        <div key={i} className="px-3 py-1 rounded-full bg-white/5 border border-white/10 text-xs font-mono text-zinc-400">
+                        <div key={i} className="px-3 py-1 rounded-full bg-stone-100/50 border border-stone-200 text-xs font-mono text-stone-500">
                           第{i+1}爻: {line}
                         </div>
                       ))}
                     </div>
-                    <div className="markdown-body font-serif leading-relaxed text-zinc-300 prose prose-invert prose-lg max-w-none prose-headings:font-serif prose-headings:font-normal prose-a:text-amber-500 prose-strong:text-amber-400 prose-strong:font-normal">
+                    <div className="markdown-body font-serif leading-relaxed text-stone-800 prose prose-stone prose-lg max-w-none prose-headings:font-serif prose-headings:font-normal prose-a:text-[#8b2b22] prose-strong:text-[#6b1e16] prose-strong:font-normal">
                       <Markdown>{record.interpretation}</Markdown>
                     </div>
                   </div>
