@@ -3,13 +3,14 @@ import { useEffect, useRef } from "react";
 
 interface CoinProps {
   value: 0 | 1; // 0 for heads (front), 1 for tails (back)
-  isTossing: boolean;
+  tossRound: number;
   delay?: number;
 }
 
-export function Coin({ value, isTossing, delay = 0 }: CoinProps) {
+export function Coin({ value, tossRound, delay = 0 }: CoinProps) {
   // 记录总旋转角度，确保每次摇卦都是向前翻转，不会倒转
   const totalRotation = useRef(value === 1 ? 180 : 0);
+  const lastAnimatedSignature = useRef("0-initial");
 
   const [{ rotateX, y, scale }, api] = useSpring(() => ({
     rotateX: totalRotation.current,
@@ -19,46 +20,54 @@ export function Coin({ value, isTossing, delay = 0 }: CoinProps) {
   }));
 
   useEffect(() => {
-    if (isTossing) {
-      // 计算目标旋转角度：当前基础圈数 + 5圈(1800度) + 目标面的角度
-      const currentBase = Math.floor(totalRotation.current / 360) * 360;
-      const spins = 1800;
-      const nextRotation = currentBase + spins + (value === 1 ? 180 : 0);
-      totalRotation.current = nextRotation;
-
-      // 1. 抛起、下落和弹跳的物理序列
-      api.start({
-        to: async (next) => {
-          // 抛起 (Launch) - 同时开始旋转
-          api.start({
-            rotateX: nextRotation,
-            config: { mass: 1, tension: 120, friction: 20 }, // 增加张力，让旋转更快完成
-            delay: delay * 1000,
-          });
-
-          await next({ y: -160, scale: 1.2, config: { mass: 1, tension: 180, friction: 25 }, delay: delay * 1000 });
-          // 下落 (Fall)
-          await next({ y: 0, scale: 1, config: { mass: 1, tension: 300, friction: 20 } });
-          // 弹跳 1 (Bounce 1) - 此时旋转应该已经基本停止
-          await next({ y: -30, config: { mass: 1, tension: 400, friction: 15 } });
-          await next({ y: 0, config: { mass: 1, tension: 500, friction: 20 } });
-          // 弹跳 2 (Bounce 2)
-          await next({ y: -10, config: { mass: 1, tension: 600, friction: 15 } });
-          await next({ y: 0, config: { mass: 1, tension: 600, friction: 20 } });
-        },
-      });
-    } else {
-      // 如果非摇卦状态（如重置），直接平滑过渡到目标状态
-      const targetRotation = value === 1 ? 180 : 0;
-      totalRotation.current = targetRotation;
-      api.start({
-        rotateX: targetRotation,
-        y: 0,
-        scale: 1,
-        config: config.stiff,
-      });
+    const signature = `${tossRound}-${value}`;
+    if (tossRound <= 0 || signature === lastAnimatedSignature.current) {
+      return;
     }
-  }, [isTossing, value, api, delay]);
+
+    lastAnimatedSignature.current = signature;
+
+    const currentBase = Math.floor(totalRotation.current / 360) * 360;
+    const spins = 1800;
+    const nextRotation = currentBase + spins + (value === 1 ? 180 : 0);
+    totalRotation.current = nextRotation;
+
+    api.stop();
+    api.start({
+      from: { y: 0, scale: 1 },
+      to: async (next) => {
+        api.start({
+          rotateX: nextRotation,
+          config: { mass: 1, tension: 120, friction: 20 },
+          delay: delay * 1000,
+        });
+
+        await next({ y: -160, scale: 1.2, config: { mass: 1, tension: 180, friction: 25 }, delay: delay * 1000 });
+        await next({ y: 0, scale: 1, config: { mass: 1, tension: 300, friction: 20 } });
+        await next({ y: -30, config: { mass: 1, tension: 400, friction: 15 } });
+        await next({ y: 0, config: { mass: 1, tension: 500, friction: 20 } });
+        await next({ y: -10, config: { mass: 1, tension: 600, friction: 15 } });
+        await next({ y: 0, config: { mass: 1, tension: 600, friction: 20 } });
+      },
+    });
+  }, [tossRound, value, api, delay]);
+
+  useEffect(() => {
+    if (tossRound !== 0) {
+      return;
+    }
+
+    const targetRotation = value === 1 ? 180 : 0;
+    totalRotation.current = targetRotation;
+    lastAnimatedSignature.current = "0-initial";
+    api.stop();
+    api.start({
+      rotateX: targetRotation,
+      y: 0,
+      scale: 1,
+      config: config.stiff,
+    });
+  }, [tossRound, value, api]);
 
   // --- Styling Constants ---
   const holeSize = 24; 

@@ -1,15 +1,16 @@
 import { useState } from "react";
 import Markdown from "react-markdown";
 import { ChevronDown, ChevronUp, Trash2 } from "lucide-react";
-import { DivinationRecord } from "../types";
+import { DivinationSummary } from "../types";
 import { motion, AnimatePresence } from "motion/react";
 
 interface HistoryViewProps {
-  history: DivinationRecord[];
+  history: DivinationSummary[];
   onDelete: (id: string) => void;
+  loadDetail: (id: string) => string | null;
 }
 
-export function HistoryView({ history, onDelete }: HistoryViewProps) {
+export function HistoryView({ history, onDelete, loadDetail }: HistoryViewProps) {
   const [expandedId, setExpandedId] = useState<string | null>(null);
 
   if (history.length === 0) {
@@ -24,6 +25,7 @@ export function HistoryView({ history, onDelete }: HistoryViewProps) {
     <div className="space-y-6 max-w-4xl mx-auto">
       {history.map((record) => {
         const isExpanded = expandedId === record.id;
+        const detail = isExpanded ? loadDetail(record.id) : null;
         const date = new Date(record.date).toLocaleString('zh-CN', {
           year: 'numeric', month: '2-digit', day: '2-digit',
           hour: '2-digit', minute: '2-digit'
@@ -81,8 +83,9 @@ export function HistoryView({ history, onDelete }: HistoryViewProps) {
                         </div>
                       ))}
                     </div>
+                    <p className="mb-4 text-sm text-stone-500">{record.excerpt}</p>
                     <div className="markdown-body font-serif leading-relaxed text-stone-800 prose prose-stone prose-lg max-w-none prose-headings:font-serif prose-headings:font-normal prose-a:text-[#8b2b22] prose-strong:text-[#6b1e16] prose-strong:font-normal">
-                      <Markdown>{record.interpretation}</Markdown>
+                      <Markdown>{detail || "未找到完整解卦内容。"}</Markdown>
                     </div>
                   </div>
                 </motion.div>

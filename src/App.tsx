@@ -1,82 +1,125 @@
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { motion } from "motion/react";
 import Markdown from "react-markdown";
-import { Loader2, RefreshCw, Sparkles, History, ArrowLeft } from "lucide-react";
+import { Loader2, RefreshCw, Sparkles, History, ArrowLeft, BookOpen, GitCompareArrows, CircleDot } from "lucide-react";
 import { Coin } from "./components/Coin";
 import { HexagramLine } from "./components/HexagramLine";
 import { LineValue, parseHexagram } from "./data/hexagrams";
 import { getGuaci, getYaoci } from "./data/ichingTexts";
 import { interpretHexagram } from "./services/aiService";
+import { generateLine } from "./lib/divination";
+import { deleteHistoryRecord, loadHistoryDetail, loadHistorySummaries, saveHistoryRecord } from "./lib/history";
 import { cn } from "./lib/utils";
-import { DivinationRecord } from "./types";
+import { DivinationRecord, DivinationSummary } from "./types";
 import { HistoryView } from "./components/HistoryView";
+
+const TOSS_DURATION_MS = 1500;
+const basics = [
+  {
+    title: "阴爻与阳爻",
+    icon: CircleDot,
+    body: "完整一横是阳，断开一横是阴。",
+    points: ["阳：7 / 9", "阴：8 / 6", "读卦顺序：自下而上"],
+  },
+  {
+    title: "动爻与变卦",
+    icon: GitCompareArrows,
+    body: "6 和 9 会动，动了以后就形成变卦。",
+    points: ["6：阴变阳", "9：阳变阴", "无动爻：只看本卦"],
+  },
+  {
+    title: "解卦",
+    icon: BookOpen,
+    body: "先看本卦，再看动爻，最后看变卦。",
+    points: ["本卦：当下情况", "动爻：关键变化", "变卦：后续趋势"],
+  },
+];
+
+function IntroLine({ type, moving = false }: { type: "yang" | "yin"; moving?: boolean }) {
+  if (type === "yang") {
+    return (
+      <div className="relative h-3 w-20">
+        <div className={`h-full w-full ${moving ? "bg-[#8b2b22]" : "bg-stone-700"}`} />
+        {moving && <span className="absolute -right-5 top-1/2 -translate-y-1/2 text-[#8b2b22] text-sm font-bold">○</span>}
+      </div>
+    );
+  }
+
+  return (
+    <div className="relative flex h-3 w-20 justify-between">
+      <div className={`h-full w-[42%] ${moving ? "bg-[#8b2b22]" : "bg-stone-700"}`} />
+      <div className={`h-full w-[42%] ${moving ? "bg-[#8b2b22]" : "bg-stone-700"}`} />
+      {moving && <span className="absolute -right-5 top-1/2 -translate-y-1/2 text-[#8b2b22] text-sm font-bold">×</span>}
+    </div>
+  );
+}
 
 export default function App() {
   const [question, setQuestion] = useState("");
   const [lines, setLines] = useState<LineValue[]>([]);
   const [isTossing, setIsTossing] = useState(false);
   const [coins, setCoins] = useState<[0 | 1, 0 | 1, 0 | 1]>([0, 0, 0]);
+  const [tossRound, setTossRound] = useState(0);
   const [interpretation, setInterpretation] = useState<string | null>(null);
   const [isInterpreting, setIsInterpreting] = useState(false);
   const [showHistory, setShowHistory] = useState(false);
-  const [history, setHistory] = useState<DivinationRecord[]>(() => {
-    try {
-      const saved = localStorage.getItem('divination_history');
-      return saved ? JSON.parse(saved) : [];
-    } catch {
-      return [];
-    }
-  });
+  const [history, setHistory] = useState<DivinationSummary[]>(() => loadHistorySummaries());
+  const tossLockRef = useRef(false);
+  const autoTossingRef = useRef(false);
 
-  const tossCoins = () => {
-    if (lines.length >= 6 || isTossing) return;
+  const appendGeneratedLine = async () => {
+    if (lines.length >= 6 || tossLockRef.current) return false;
 
+    tossLockRef.current = true;
+    const { coins: nextCoins, score } = generateLine();
     setIsTossing(true);
-    
-    const newCoins: [0 | 1, 0 | 1, 0 | 1] = [
-      Math.floor(Math.random() * 2) as 0 | 1,
-      Math.floor(Math.random() * 2) as 0 | 1,
-      Math.floor(Math.random() * 2) as 0 | 1,
-    ];
+    setTossRound((prev) => prev + 1);
+    setCoins(nextCoins);
 
-    setCoins(newCoins);
-
-    const score = newCoins.reduce((acc, curr) => acc + (curr === 1 ? 3 : 2), 0) as LineValue;
-
-    setTimeout(() => {
+    try {
+      await new Promise((resolve) => window.setTimeout(resolve, TOSS_DURATION_MS));
       setLines((prev) => [...prev, score]);
+      return true;
+    } finally {
       setIsTossing(false);
-    }, 1500);
+      if (!autoTossingRef.current) {
+        tossLockRef.current = false;
+      }
+    }
   };
 
-  const autoToss = () => {
-    if (isTossing) return;
-    
+  const tossCoins = async () => {
+    await appendGeneratedLine();
+  };
+
+  const autoToss = async () => {
+    if (tossLockRef.current) return;
+
+    autoTossingRef.current = true;
+    tossLockRef.current = true;
     setLines([]);
+    setCoins([0, 0, 0]);
+    setTossRound(0);
     setInterpretation(null);
-    
-    let count = 0;
-    const interval = setInterval(() => {
-      if (count >= 6) {
-        clearInterval(interval);
-        return;
+
+    try {
+      for (let count = 0; count < 6; count += 1) {
+        tossLockRef.current = false;
+        const appended = await appendGeneratedLine();
+        if (!appended) {
+          break;
+        }
       }
-      
-      const newCoins: [0 | 1, 0 | 1, 0 | 1] = [
-        Math.floor(Math.random() * 2) as 0 | 1,
-        Math.floor(Math.random() * 2) as 0 | 1,
-        Math.floor(Math.random() * 2) as 0 | 1,
-      ];
-      const score = newCoins.reduce((acc, curr) => acc + (curr === 1 ? 3 : 2), 0) as LineValue;
-      
-      setLines((prev) => [...prev, score]);
-      count++;
-    }, 500);
+    } finally {
+      autoTossingRef.current = false;
+      tossLockRef.current = false;
+    }
   };
 
   const reset = () => {
     setLines([]);
     setCoins([0, 0, 0]);
+    setTossRound(0);
     setInterpretation(null);
     setQuestion("");
   };
@@ -100,9 +143,7 @@ export default function App() {
         interpretation: result,
       };
 
-      const updatedHistory = [newRecord, ...history];
-      setHistory(updatedHistory);
-      localStorage.setItem('divination_history', JSON.stringify(updatedHistory));
+      setHistory(saveHistoryRecord(newRecord));
     } catch (error: any) {
       alert(error.message || "解卦失败，请检查网络或API Key配置。");
     } finally {
@@ -111,9 +152,7 @@ export default function App() {
   };
 
   const handleDeleteHistory = (id: string) => {
-    const updatedHistory = history.filter(r => r.id !== id);
-    setHistory(updatedHistory);
-    localStorage.setItem('divination_history', JSON.stringify(updatedHistory));
+    setHistory(deleteHistoryRecord(id));
   };
 
   const hexData = lines.length === 6 ? parseHexagram(lines) : null;
@@ -166,9 +205,103 @@ export default function App() {
       <main className="relative z-10 max-w-6xl mx-auto p-4 sm:p-6 lg:p-8 space-y-4 sm:space-y-6 pb-16">
         
         {showHistory ? (
-          <HistoryView history={history} onDelete={handleDeleteHistory} />
+          <HistoryView history={history} onDelete={handleDeleteHistory} loadDetail={loadHistoryDetail} />
         ) : (
           <>
+            <section className="glass-panel rounded-3xl p-5 sm:p-6 lg:p-8 max-w-5xl mx-auto overflow-hidden relative">
+              <div className="absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-[#8b2b22]/40 to-transparent" />
+              <div className="flex items-center gap-3 mb-6">
+                <div className="w-10 h-10 rounded-full border border-[#8b2b22]/20 bg-[#8b2b22]/8 flex items-center justify-center text-[#8b2b22]">
+                  <BookOpen className="w-5 h-5" />
+                </div>
+                <div>
+                  <h2 className="text-lg sm:text-xl font-serif tracking-[0.2em] text-stone-900">六爻入门</h2>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
+                {basics.map((item, index) => {
+                  const Icon = item.icon;
+                  return (
+                    <motion.article
+                      key={item.title}
+                      initial={{ opacity: 0, y: 12 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      transition={{ delay: 0.1 * index }}
+                      className="rounded-2xl border border-stone-200 bg-[linear-gradient(180deg,rgba(255,255,255,0.7),rgba(244,241,234,0.9))] p-5"
+                    >
+                      <div className="flex items-center gap-3 mb-4">
+                        <div className="w-9 h-9 rounded-full bg-stone-900 text-[#fdfbf7] flex items-center justify-center">
+                          <Icon className="w-4 h-4" />
+                        </div>
+                        <h3 className="font-serif text-lg text-stone-900">{item.title}</h3>
+                      </div>
+                      <div className="mb-4 rounded-2xl border border-stone-200 bg-[#f4f1ea]/80 px-4 py-4">
+                        {index === 0 && (
+                          <div className="space-y-3">
+                            <div className="flex items-center justify-between">
+                              <span className="text-xs tracking-[0.2em] text-stone-500">阳爻</span>
+                              <IntroLine type="yang" />
+                            </div>
+                            <div className="flex items-center justify-between">
+                              <span className="text-xs tracking-[0.2em] text-stone-500">阴爻</span>
+                              <IntroLine type="yin" />
+                            </div>
+                          </div>
+                        )}
+                        {index === 1 && (
+                          <div className="flex items-center justify-between gap-3">
+                            <div className="space-y-3">
+                              <div className="flex items-center gap-3">
+                                <IntroLine type="yin" moving />
+                              </div>
+                              <div className="flex items-center gap-3">
+                                <IntroLine type="yang" moving />
+                              </div>
+                            </div>
+                            <div className="text-[#8b2b22] text-xl">→</div>
+                            <div className="space-y-3">
+                              <IntroLine type="yang" />
+                              <IntroLine type="yin" />
+                            </div>
+                          </div>
+                        )}
+                        {index === 2 && (
+                          <div className="flex items-center justify-between gap-3 text-center">
+                            <div className="flex-1 rounded-xl bg-white/80 px-3 py-3">
+                              <div className="text-xs tracking-[0.2em] text-stone-500 mb-1">本卦</div>
+                              <div className="text-sm font-serif text-stone-800">看当下</div>
+                            </div>
+                            <div className="text-stone-400">→</div>
+                            <div className="flex-1 rounded-xl bg-white/80 px-3 py-3">
+                              <div className="text-xs tracking-[0.2em] text-stone-500 mb-1">动爻</div>
+                              <div className="text-sm font-serif text-stone-800">看变化</div>
+                            </div>
+                            <div className="text-stone-400">→</div>
+                            <div className="flex-1 rounded-xl bg-white/80 px-3 py-3">
+                              <div className="text-xs tracking-[0.2em] text-stone-500 mb-1">变卦</div>
+                              <div className="text-sm font-serif text-stone-800">看后势</div>
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                      <p className="text-sm leading-7 text-stone-700 font-serif">{item.body}</p>
+                      <div className="mt-4 flex flex-wrap gap-2">
+                        {item.points.map((point) => (
+                          <div
+                            key={point}
+                            className="rounded-full border border-stone-200 bg-white/80 px-3 py-1.5 text-xs text-stone-600"
+                          >
+                            {point}
+                          </div>
+                        ))}
+                      </div>
+                    </motion.article>
+                  );
+                })}
+              </div>
+            </section>
+
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4 sm:gap-6 max-w-5xl mx-auto">
               {/* Input Section */}
               <section className="glass-panel rounded-3xl p-5 sm:p-6 flex flex-col">
@@ -205,9 +338,9 @@ export default function App() {
               {/* Tossing Area */}
               <section className="glass-panel rounded-3xl p-5 sm:p-6 flex flex-col items-center justify-center">
                 <div className="flex gap-4 sm:gap-6 mb-6 h-24 items-center">
-                  <Coin value={coins[0]} isTossing={isTossing} delay={0} />
-                  <Coin value={coins[1]} isTossing={isTossing} delay={0.1} />
-                  <Coin value={coins[2]} isTossing={isTossing} delay={0.2} />
+                  <Coin value={coins[0]} tossRound={tossRound} delay={0} />
+                  <Coin value={coins[1]} tossRound={tossRound} delay={0.1} />
+                  <Coin value={coins[2]} tossRound={tossRound} delay={0.2} />
                 </div>
 
                 <div className="flex gap-3 sm:gap-4 w-full max-w-sm">

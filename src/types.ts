@@ -1,6 +1,6 @@
 import { LineValue } from "./data/hexagrams";
 
-export interface DivinationRecord {
+export interface DivinationSummary {
   id: string;
   date: string;
   question: string;
@@ -8,5 +8,9 @@ export interface DivinationRecord {
   originalName: string;
   changedName: string;
   movingLines: number[];
+  excerpt: string;
+}
+
+export interface DivinationRecord extends Omit<DivinationSummary, "excerpt"> {
   interpretation: string;
 }
