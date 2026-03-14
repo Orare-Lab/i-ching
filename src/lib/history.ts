@@ -1,4 +1,5 @@
 import { DivinationRecord, DivinationSummary } from "../types";
+import { parseInterpretation } from "./interpretation";
 
 const HISTORY_SUMMARY_KEY = "divination_history_summaries";
 const HISTORY_LEGACY_KEY = "divination_history";
@@ -6,7 +7,7 @@ const HISTORY_DETAIL_PREFIX = "divination_history_detail_";
 const MAX_HISTORY_ITEMS = 50;
 
 function summarizeInterpretation(interpretation: string) {
-  const plainText = interpretation
+  const plainText = (parseInterpretation(interpretation).answer || interpretation)
     .replace(/[#>*`~-]/g, " ")
     .replace(/\[(.*?)\]\((.*?)\)/g, "$1")
     .replace(/\s+/g, " ")

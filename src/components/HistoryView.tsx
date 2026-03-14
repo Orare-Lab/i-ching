@@ -3,6 +3,7 @@ import Markdown from "react-markdown";
 import { ChevronDown, ChevronUp, Trash2 } from "lucide-react";
 import { DivinationSummary } from "../types";
 import { motion, AnimatePresence } from "motion/react";
+import { parseInterpretation } from "../lib/interpretation";
 
 interface HistoryViewProps {
   history: DivinationSummary[];
@@ -26,6 +27,7 @@ export function HistoryView({ history, onDelete, loadDetail }: HistoryViewProps)
       {history.map((record) => {
         const isExpanded = expandedId === record.id;
         const detail = isExpanded ? loadDetail(record.id) : null;
+        const parsedDetail = parseInterpretation(detail || "");
         const date = new Date(record.date).toLocaleString('zh-CN', {
           year: 'numeric', month: '2-digit', day: '2-digit',
           hour: '2-digit', minute: '2-digit'
@@ -85,8 +87,16 @@ export function HistoryView({ history, onDelete, loadDetail }: HistoryViewProps)
                     </div>
                     <p className="mb-4 text-sm text-stone-500">{record.excerpt}</p>
                     <div className="markdown-body font-serif leading-relaxed text-stone-800 prose prose-stone prose-lg max-w-none prose-headings:font-serif prose-headings:font-normal prose-a:text-[#8b2b22] prose-strong:text-[#6b1e16] prose-strong:font-normal">
-                      <Markdown>{detail || "未找到完整解卦内容。"}</Markdown>
+                      <Markdown>{parsedDetail.answer || detail || "未找到完整解卦内容。"}</Markdown>
                     </div>
+                    {parsedDetail.reasoning && (
+                      <details className="mt-6 rounded-2xl border border-stone-200 bg-stone-50/80 px-4 py-3">
+                        <summary className="cursor-pointer text-sm text-stone-600 select-none">查看解卦依据</summary>
+                        <div className="mt-4 markdown-body font-serif leading-relaxed text-stone-700 prose prose-stone prose-base max-w-none prose-headings:font-serif prose-headings:font-normal prose-a:text-[#8b2b22] prose-strong:text-[#6b1e16] prose-strong:font-normal">
+                          <Markdown>{parsedDetail.reasoning}</Markdown>
+                        </div>
+                      </details>
+                    )}
                   </div>
                 </motion.div>
               )}

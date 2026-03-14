@@ -9,6 +9,7 @@ import { getGuaci, getYaoci } from "./data/ichingTexts";
 import { interpretHexagram } from "./services/aiService";
 import { generateLine } from "./lib/divination";
 import { deleteHistoryRecord, loadHistoryDetail, loadHistorySummaries, saveHistoryRecord } from "./lib/history";
+import { parseInterpretation } from "./lib/interpretation";
 import { cn } from "./lib/utils";
 import { DivinationRecord, DivinationSummary } from "./types";
 import { HistoryView } from "./components/HistoryView";
@@ -160,9 +161,13 @@ export default function App() {
     if (lines.length < 6 || !hexData) return;
     
     setIsInterpreting(true);
+    setInterpretation("");
     try {
-      const result = await interpretHexagram(question, lines);
-      setInterpretation(result);
+      const result = await interpretHexagram(question, lines, {
+        onChunk: (_chunk, fullText) => {
+          setInterpretation(fullText);
+        },
+      });
 
       const newRecord: DivinationRecord = {
         id: Date.now().toString(),
@@ -177,6 +182,7 @@ export default function App() {
 
       setHistory(saveHistoryRecord(newRecord));
     } catch (error: any) {
+      setInterpretation(null);
       if (typeof error?.message === "string" && error.message.includes("邀请码")) {
         setAuthStatus("unauthenticated");
         setAuthError("登录状态已失效，请重新输入邀请码。");
@@ -237,6 +243,7 @@ export default function App() {
   };
 
   const hexData = lines.length === 6 ? parseHexagram(lines) : null;
+  const parsedInterpretation = parseInterpretation(interpretation || "");
 
   if (authStatus === "loading") {
     return (
@@ -666,15 +673,31 @@ export default function App() {
         )}
 
         {/* Interpretation Result */}
-        {interpretation && !showHistory && (
+        {interpretation !== null && !showHistory && (
           <motion.section 
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
             className="glass-panel rounded-3xl p-6 sm:p-8 prose prose-stone prose-base sm:prose-lg max-w-none prose-headings:font-serif prose-headings:font-normal prose-a:text-[#8b2b22] prose-strong:text-[#6b1e16] prose-strong:font-normal"
           >
             <div className="markdown-body font-serif leading-relaxed text-stone-800">
-              <Markdown>{interpretation}</Markdown>
+              {parsedInterpretation.answer ? (
+                <Markdown>{parsedInterpretation.answer}</Markdown>
+              ) : parsedInterpretation.reasoning ? (
+                <p className="text-stone-500">
+                  {parsedInterpretation.isReasoningPending ? "正在整理最终解卦结果..." : "正在接收解卦内容..."}
+                </p>
+              ) : (
+                <p className="text-stone-500">正在接收解卦内容...</p>
+              )}
             </div>
+            {parsedInterpretation.reasoning && (
+              <details className="mt-6 rounded-2xl border border-stone-200 bg-stone-50/80 px-4 py-3 not-prose">
+                <summary className="cursor-pointer text-sm text-stone-600 select-none">查看解卦依据</summary>
+                <div className="mt-4 markdown-body font-serif leading-relaxed text-stone-700 prose prose-stone prose-base max-w-none prose-headings:font-serif prose-headings:font-normal prose-a:text-[#8b2b22] prose-strong:text-[#6b1e16] prose-strong:font-normal">
+                  <Markdown>{parsedInterpretation.reasoning}</Markdown>
+                </div>
+              </details>
+            )}
           </motion.section>
         )}
           </>

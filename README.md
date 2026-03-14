@@ -10,6 +10,8 @@
 OPENAI_API_KEY=
 OPENAI_BASE_URL=https://api.openai.com/v1
 OPENAI_MODEL=gpt-4o
+OPENAI_API_PATH=/chat/completions
+OPENAI_API_STYLE=chat
 SESSION_SECRET=replace_with_a_long_random_string
 INVITE_CODES=demo-invite-1,demo-invite-2
 ```
@@ -18,6 +20,8 @@ INVITE_CODES=demo-invite-1,demo-invite-2
 
 - `OPENAI_API_KEY` 只在服务端使用，不再暴露给浏览器。
 - 前端统一调用 `/api/interpret`，由服务端转发到 OpenAI 兼容接口。
+- `OPENAI_API_PATH` 用于指定上游接口路径，例如 `/chat/completions` 或 `/responses`。
+- `OPENAI_API_STYLE` 用于指定请求/响应格式，支持 `chat` 和 `responses`；留空时会按 `OPENAI_API_PATH` 自动推断。
 - `INVITE_CODES` 是逗号分隔的邀请码白名单；只有兑换成功的会话才能调用解卦接口。
 - `SESSION_SECRET` 用于签发访问会话，生产环境请设置为独立随机字符串。
 

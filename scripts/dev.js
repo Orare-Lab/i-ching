@@ -30,5 +30,5 @@ function shutdown() {
 process.on("SIGINT", shutdown);
 process.on("SIGTERM", shutdown);
 
-run("server", "node", ["server/index.js"]);
+run("server", "tsx", ["server/index.ts"]);
 run("client", "npm", ["run", "dev:client"]);

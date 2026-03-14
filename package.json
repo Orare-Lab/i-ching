@@ -6,10 +6,10 @@
   "scripts": {
     "dev": "node scripts/dev.js",
     "dev:client": "vite --port=3000 --host=0.0.0.0",
-    "dev:server": "node server/index.js",
+    "dev:server": "tsx server/index.ts",
     "build": "vite build",
     "preview": "vite preview",
-    "start": "NODE_ENV=production node server/index.js",
+    "start": "NODE_ENV=production tsx server/index.ts",
     "clean": "rm -rf dist",
     "lint": "tsc --noEmit"
   },

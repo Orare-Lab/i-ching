@@ -1,20 +1,26 @@
-import { clearSessionCookie, getAuthenticatedSession, redeemInviteCode } from "./auth.js";
+import { clearSessionCookie, getAuthenticatedSession, redeemInviteCode } from "./auth";
+import { RequestLike, ResponseLike } from "./http";
 
-function getInviteCode(body) {
+function getInviteCode(body: unknown) {
   if (!body) return "";
   if (typeof body === "string") {
     try {
-      const parsed = JSON.parse(body);
+      const parsed = JSON.parse(body) as { inviteCode?: string };
       return typeof parsed?.inviteCode === "string" ? parsed.inviteCode.trim() : "";
     } catch {
       return "";
     }
   }
 
-  return typeof body?.inviteCode === "string" ? body.inviteCode.trim() : "";
+  if (typeof body === "object" && body !== null && "inviteCode" in body) {
+    const inviteCode = (body as { inviteCode?: unknown }).inviteCode;
+    return typeof inviteCode === "string" ? inviteCode.trim() : "";
+  }
+
+  return "";
 }
 
-export async function meHandler(req, res) {
+export async function meHandler(req: RequestLike, res: ResponseLike) {
   if (req.method !== "GET") {
     res.setHeader("Allow", "GET");
     return res.status(405).json({ error: "仅支持 GET 请求。" });
@@ -26,7 +32,7 @@ export async function meHandler(req, res) {
   });
 }
 
-export async function redeemInviteHandler(req, res) {
+export async function redeemInviteHandler(req: RequestLike, res: ResponseLike) {
   if (req.method !== "POST") {
     res.setHeader("Allow", "POST");
     return res.status(405).json({ error: "仅支持 POST 请求。" });
@@ -41,7 +47,7 @@ export async function redeemInviteHandler(req, res) {
   return res.json({ authenticated: true });
 }
 
-export async function logoutHandler(req, res) {
+export async function logoutHandler(req: RequestLike, res: ResponseLike) {
   if (req.method !== "POST") {
     res.setHeader("Allow", "POST");
     return res.status(405).json({ error: "仅支持 POST 请求。" });
