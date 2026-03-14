@@ -1,10 +1,10 @@
 import { FormEvent, useEffect, useRef, useState } from "react";
 import { motion } from "motion/react";
 import Markdown from "react-markdown";
-import { Loader2, RefreshCw, Sparkles, History, ArrowLeft, BookOpen, GitCompareArrows, CircleDot } from "lucide-react";
+import { Loader2, RefreshCw, Sparkles, History, ArrowLeft, BookOpen, GitCompareArrows, CircleDot, Layers3, Waypoints, Coins, Users, Stars } from "lucide-react";
 import { Coin } from "./components/Coin";
 import { HexagramLine } from "./components/HexagramLine";
-import { LineValue, parseHexagram } from "./data/hexagrams";
+import { LineValue, createHexagramLineDetail, parseHexagram } from "./data/hexagrams";
 import { getGuaci, getYaoci } from "./data/ichingTexts";
 import { interpretHexagram } from "./services/aiService";
 import { generateLine } from "./lib/divination";
@@ -13,44 +13,167 @@ import { parseInterpretation } from "./lib/interpretation";
 import { cn } from "./lib/utils";
 import { DivinationRecord, DivinationSummary } from "./types";
 import { HistoryView } from "./components/HistoryView";
+import { getDayStemForDate } from "./lib/hexagramAnnotations";
 
 const TOSS_DURATION_MS = 1500;
 const basics = [
   {
-    title: "阴爻与阳爻",
+    key: "lines",
+    title: "阴阳与四象",
     icon: CircleDot,
-    body: "完整一横是阳，断开一横是阴。",
-    points: ["阳：7 / 9", "阴：8 / 6", "读卦顺序：自下而上"],
+    body: "先看阴阳，再分老阴、少阴、少阳、老阳。",
+    points: ["6 = 老阴", "7 = 少阳", "8 = 少阴", "9 = 老阳"],
   },
   {
-    title: "动爻与变卦",
+    key: "bagua",
+    title: "四象生八卦",
+    icon: Layers3,
+    body: "四象再分，就能展开成八卦。",
+    points: ["乾", "兑", "离", "震", "巽", "坎", "艮", "坤"],
+  },
+  {
+    key: "change",
+    title: "什么会变化",
     icon: GitCompareArrows,
-    body: "6 和 9 会动，动了以后就形成变卦。",
-    points: ["6：阴变阳", "9：阳变阴", "无动爻：只看本卦"],
+    body: "老阴老阳会动，少阴少阳不动。",
+    points: ["6：老阴 -> 阳", "9：老阳 -> 阴", "7 / 8 不变"],
   },
   {
-    title: "解卦",
-    icon: BookOpen,
-    body: "先看本卦，再看动爻，最后看变卦。",
-    points: ["本卦：当下情况", "动爻：关键变化", "变卦：后续趋势"],
+    key: "reading",
+    title: "怎么看结果",
+    icon: Waypoints,
+    body: "按这个顺序看，最不容易乱。",
+    points: ["本卦：当下", "动爻：关键", "变卦：后势"],
+  },
+  {
+    key: "relations",
+    title: "六亲看什么",
+    icon: Users,
+    body: "六亲不是家谱，而是把事物分成几类角色。",
+    points: ["兄弟：同类/竞争", "子孙：结果/放松", "妻财：财物/资源", "官鬼：压力/工作", "父母：文书/庇护", "结果区：先看你问的是哪一亲"],
+  },
+  {
+    key: "spirits",
+    title: "六神看什么",
+    icon: Stars,
+    body: "六神像气氛标签，帮你看事情怎么发生。",
+    points: ["青龙：顺喜", "朱雀：言语", "勾陈：拖延", "腾蛇：虚惊", "白虎：冲突", "玄武：隐情", "结果区：再看它带着什么气氛"],
+  },
+  {
+    key: "order",
+    title: "怎么读六爻",
+    icon: Layers3,
+    body: "一卦六层，顺序从下往上记。",
+    points: ["初 -> 二 -> 三 -> 四 -> 五 -> 上", "记录顺序：自下而上"],
+  },
+  {
+    key: "coins",
+    title: "三枚钱币怎么看",
+    icon: Coins,
+    body: "正面记 2，背面记 3，三枚相加就是爻数。",
+    points: ["3 正 = 6", "2 正 1 背 = 7", "1 正 2 背 = 8", "3 背 = 9"],
   },
 ];
 
 function IntroLine({ type, moving = false }: { type: "yang" | "yin"; moving?: boolean }) {
   if (type === "yang") {
     return (
-      <div className="relative h-3 w-20">
-        <div className={`h-full w-full ${moving ? "bg-[#8b2b22]" : "bg-stone-700"}`} />
-        {moving && <span className="absolute -right-5 top-1/2 -translate-y-1/2 text-[#8b2b22] text-sm font-bold">○</span>}
+      <div className="flex h-3 w-24 items-center gap-2">
+        <div className={`h-full flex-1 ${moving ? "bg-[#8b2b22]" : "bg-stone-700"}`} />
+        <span className="w-4 text-center text-sm font-bold text-[#8b2b22]">{moving ? "○" : ""}</span>
       </div>
     );
   }
 
   return (
-    <div className="relative flex h-3 w-20 justify-between">
-      <div className={`h-full w-[42%] ${moving ? "bg-[#8b2b22]" : "bg-stone-700"}`} />
-      <div className={`h-full w-[42%] ${moving ? "bg-[#8b2b22]" : "bg-stone-700"}`} />
-      {moving && <span className="absolute -right-5 top-1/2 -translate-y-1/2 text-[#8b2b22] text-sm font-bold">×</span>}
+    <div className="flex h-3 w-24 items-center gap-2">
+      <div className="flex flex-1 justify-between">
+        <div className={`h-3 w-[42%] ${moving ? "bg-[#8b2b22]" : "bg-stone-700"}`} />
+        <div className={`h-3 w-[42%] ${moving ? "bg-[#8b2b22]" : "bg-stone-700"}`} />
+      </div>
+      <span className="w-4 text-center text-sm font-bold text-[#8b2b22]">{moving ? "×" : ""}</span>
+    </div>
+  );
+}
+
+function IntroStep({ index, label }: { index: string; label: string }) {
+  return (
+    <div className="inline-flex items-center gap-2 rounded-full border border-[#8b2b22]/15 bg-white/80 px-3 py-1 text-[11px] tracking-[0.18em] text-stone-500">
+      <span className="text-[#8b2b22]">{index}</span>
+      <span>{label}</span>
+    </div>
+  );
+}
+
+function IntroCoinTriple({ pattern }: { pattern: ("front" | "back")[] }) {
+  return (
+    <div className="flex items-center gap-1.5">
+      {pattern.map((side, index) => (
+        <span
+          key={`${side}-${index}`}
+          className={cn(
+            "flex h-5 w-5 items-center justify-center rounded-full border text-[10px] font-serif",
+            side === "front"
+              ? "border-stone-300 bg-stone-100 text-stone-600"
+              : "border-[#8b2b22]/25 bg-[#8b2b22]/8 text-[#8b2b22]",
+          )}
+        >
+          {side === "front" ? "正" : "背"}
+        </span>
+      ))}
+    </div>
+  );
+}
+
+function TrigramBraceColumn({ upper, lower }: { upper: string; lower: string }) {
+  return (
+      <div className="flex w-10 sm:w-12 flex-col justify-between py-2 text-stone-500">
+        <div className="flex h-[calc(50%-0.25rem)] items-center">
+        <span className="text-[72px] leading-none text-stone-300 sm:text-[84px]">{"}"}</span>
+          <span className="ml-1 text-sm sm:text-base font-serif">{upper}</span>
+        </div>
+        <div className="flex h-[calc(50%-0.25rem)] items-center">
+        <span className="text-[72px] leading-none text-stone-300 sm:text-[84px]">{"}"}</span>
+          <span className="ml-1 text-sm sm:text-base font-serif">{lower}</span>
+        </div>
+      </div>
+  );
+}
+
+function IntroTrigram({ binary }: { binary: string }) {
+  return (
+    <div className="flex w-6 flex-col-reverse items-center gap-1">
+      {binary.split("").map((bit, index) => (
+        <div key={`${binary}-${index}`} className="w-full">
+          {bit === "1" ? (
+            <div className="h-1.5 w-full bg-stone-700" />
+          ) : (
+            <div className="flex justify-between">
+              <div className="h-1.5 w-[42%] bg-stone-700" />
+              <div className="h-1.5 w-[42%] bg-stone-700" />
+            </div>
+          )}
+        </div>
+      ))}
+    </div>
+  );
+}
+
+function EdgeTrigram({
+  name,
+  binary,
+  className,
+}: {
+  name: string;
+  binary: string;
+  className: string;
+}) {
+  return (
+    <div className={cn("absolute flex items-center justify-center", className)}>
+      <div className="flex flex-col items-center gap-1">
+        <span className="text-[11px] font-serif text-stone-700">{name}</span>
+        <IntroTrigram binary={binary} />
+      </div>
     </div>
   );
 }
@@ -69,6 +192,7 @@ export default function App() {
   const [isInterpreting, setIsInterpreting] = useState(false);
   const [showHistory, setShowHistory] = useState(false);
   const [history, setHistory] = useState<DivinationSummary[]>(() => loadHistorySummaries());
+  const [castingDate, setCastingDate] = useState<string | null>(null);
   const tossLockRef = useRef(false);
   const autoTossingRef = useRef(false);
 
@@ -122,6 +246,9 @@ export default function App() {
 
     tossLockRef.current = true;
     const { coins: nextCoins, score } = generateLine();
+    if (lines.length === 0 && !castingDate) {
+      setCastingDate(new Date().toISOString());
+    }
     setIsTossing(true);
     setTossRound((prev) => prev + 1);
     setCoins(nextCoins);
@@ -147,6 +274,7 @@ export default function App() {
 
     autoTossingRef.current = true;
     tossLockRef.current = true;
+    setCastingDate(new Date().toISOString());
     setLines([]);
     setCoins([0, 0, 0]);
     setTossRound(0);
@@ -172,6 +300,7 @@ export default function App() {
     setTossRound(0);
     setInterpretation(null);
     setQuestion("");
+    setCastingDate(null);
   };
 
   const handleInterpret = async () => {
@@ -181,6 +310,7 @@ export default function App() {
     setInterpretation("");
     try {
       const result = await interpretHexagram(question, lines, {
+        castedAt: castingDate,
         onChunk: (_chunk, fullText) => {
           setInterpretation(fullText);
         },
@@ -259,7 +389,10 @@ export default function App() {
     setHistory(deleteHistoryRecord(id));
   };
 
-  const hexData = lines.length === 6 ? parseHexagram(lines) : null;
+  const computationDate = castingDate ? new Date(castingDate) : new Date();
+  const hexData = lines.length === 6
+    ? parseHexagram(lines, { dayStem: getDayStemForDate(computationDate) })
+    : null;
   const parsedInterpretation = parseInterpretation(interpretation || "");
 
   if (authStatus === "loading") {
@@ -373,11 +506,12 @@ export default function App() {
                 </div>
                 <div>
                   <h2 className="text-lg sm:text-xl font-serif tracking-[0.2em] text-stone-900">六爻入门</h2>
+                  <p className="mt-1 text-sm text-stone-500 font-serif">五分钟看懂六爻怎么起、怎么读。</p>
                 </div>
               </div>
 
-              <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
-                {basics.map((item, index) => {
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                {basics.slice(0, 6).map((item, index) => {
                   const Icon = item.icon;
                   return (
                     <motion.article
@@ -393,51 +527,431 @@ export default function App() {
                         </div>
                         <h3 className="font-serif text-lg text-stone-900">{item.title}</h3>
                       </div>
-                      <div className="mb-4 rounded-2xl border border-stone-200 bg-[#f4f1ea]/80 px-4 py-4">
-                        {index === 0 && (
-                          <div className="space-y-3">
-                            <div className="flex items-center justify-between">
-                              <span className="text-xs tracking-[0.2em] text-stone-500">阳爻</span>
-                              <IntroLine type="yang" />
+                      <div className="mb-4 rounded-2xl border border-stone-200 bg-[#f4f1ea]/90 px-4 py-4">
+                        {item.key === "lines" && (
+                          <div className="space-y-4">
+                            <IntroStep index="01" label="先认阴阳，再认四象" />
+                            <div className="grid grid-cols-2 gap-3">
+                              <div className="rounded-2xl border border-stone-200 bg-white/90 px-3 py-3">
+                                <div className="text-[11px] tracking-[0.2em] text-stone-400">阴</div>
+                                <div className="mt-3 flex items-center justify-between gap-3">
+                                  <span className="text-sm font-serif text-stone-700">断开</span>
+                                  <IntroLine type="yin" />
+                                </div>
+                              </div>
+                              <div className="rounded-2xl border border-stone-200 bg-white/90 px-3 py-3">
+                                <div className="text-[11px] tracking-[0.2em] text-stone-400">阳</div>
+                                <div className="mt-3 flex items-center justify-between gap-3">
+                                  <span className="text-sm font-serif text-stone-700">整线</span>
+                                  <IntroLine type="yang" />
+                                </div>
+                              </div>
                             </div>
-                            <div className="flex items-center justify-between">
-                              <span className="text-xs tracking-[0.2em] text-stone-500">阴爻</span>
-                              <IntroLine type="yin" />
+                            <div className="grid grid-cols-2 gap-3">
+                              <div className="rounded-2xl border border-stone-200 bg-white/90 px-3 py-3">
+                                <div className="flex items-center justify-between">
+                                  <span className="text-[11px] tracking-[0.2em] text-stone-400">6</span>
+                                </div>
+                                <div className="mt-3 flex items-center justify-between gap-3">
+                                  <span className="text-sm font-serif text-[#8b2b22]">老阴</span>
+                                  <IntroLine type="yin" moving />
+                                </div>
+                              </div>
+                              <div className="rounded-2xl border border-stone-200 bg-white/90 px-3 py-3">
+                                <div className="flex items-center justify-between">
+                                  <span className="text-[11px] tracking-[0.2em] text-stone-400">8</span>
+                                </div>
+                                <div className="mt-3 flex items-center justify-between gap-3">
+                                  <span className="text-sm font-serif text-stone-700">少阴</span>
+                                  <IntroLine type="yin" />
+                                </div>
+                              </div>
+                              <div className="rounded-2xl border border-stone-200 bg-white/90 px-3 py-3">
+                                <div className="flex items-center justify-between">
+                                  <span className="text-[11px] tracking-[0.2em] text-stone-400">7</span>
+                                </div>
+                                <div className="mt-3 flex items-center justify-between gap-3">
+                                  <span className="text-sm font-serif text-stone-700">少阳</span>
+                                  <IntroLine type="yang" />
+                                </div>
+                              </div>
+                              <div className="rounded-2xl border border-stone-200 bg-white/90 px-3 py-3">
+                                <div className="flex items-center justify-between">
+                                  <span className="text-[11px] tracking-[0.2em] text-stone-400">9</span>
+                                </div>
+                                <div className="mt-3 flex items-center justify-between gap-3">
+                                  <span className="text-sm font-serif text-[#8b2b22]">老阳</span>
+                                  <IntroLine type="yang" moving />
+                                </div>
+                              </div>
+                            </div>
+                            <div className="flex items-center justify-center gap-3 rounded-2xl border border-dashed border-stone-200 bg-white/70 px-3 py-2 text-xs text-stone-500">
+                              <span>老阴老阳会动</span>
+                              <span className="text-stone-300">→</span>
+                              <span>少阴少阳不动</span>
                             </div>
                           </div>
                         )}
-                        {index === 1 && (
-                          <div className="flex items-center justify-between gap-3">
-                            <div className="space-y-3">
-                              <div className="flex items-center gap-3">
-                                <IntroLine type="yin" moving />
+                        {item.key === "bagua" && (
+                          <div className="space-y-4">
+                            <IntroStep index="02" label="四象展开成八卦" />
+                            <div className="relative mx-auto h-64 w-64">
+                              <div className="absolute left-1/2 top-1/2 h-36 w-36 -translate-x-1/2 -translate-y-1/2 overflow-hidden rounded-full border border-stone-300 bg-white shadow-sm">
+                                <div className="absolute inset-y-0 left-0 w-1/2 bg-stone-900" />
+                                <div className="absolute left-1/2 top-0 h-18 w-18 -translate-x-1/2 rounded-full bg-white" />
+                                <div className="absolute bottom-0 left-1/2 h-18 w-18 -translate-x-1/2 rounded-full bg-stone-900" />
+                                <div className="absolute left-1/2 top-1/4 h-6 w-6 -translate-x-1/2 -translate-y-1/2 rounded-full bg-stone-900" />
+                                <div className="absolute left-1/2 top-3/4 h-6 w-6 -translate-x-1/2 -translate-y-1/2 rounded-full border border-stone-300/50 bg-white" />
                               </div>
-                              <div className="flex items-center gap-3">
-                                <IntroLine type="yang" moving />
-                              </div>
+                              <EdgeTrigram name="乾" binary="111" className="left-1/2 top-0 -translate-x-1/2" />
+                              <EdgeTrigram name="巽" binary="011" className="right-7 top-7" />
+                              <EdgeTrigram name="坎" binary="010" className="right-0 top-1/2 -translate-y-1/2" />
+                              <EdgeTrigram name="艮" binary="001" className="right-7 bottom-7" />
+                              <EdgeTrigram name="坤" binary="000" className="left-1/2 bottom-0 -translate-x-1/2" />
+                              <EdgeTrigram name="震" binary="100" className="left-7 bottom-7" />
+                              <EdgeTrigram name="离" binary="101" className="left-0 top-1/2 -translate-y-1/2" />
+                              <EdgeTrigram name="兑" binary="110" className="left-7 top-7" />
                             </div>
-                            <div className="text-[#8b2b22] text-xl">→</div>
-                            <div className="space-y-3">
-                              <IntroLine type="yang" />
-                              <IntroLine type="yin" />
+                            <div className="text-center text-xs text-stone-500">太极在中，一圈八卦按方位展开。</div>
+                          </div>
+                        )}
+                        {item.key === "order" && (
+                          <div className="space-y-4">
+                            <IntroStep index="03" label="从下往上读" />
+                            <div className="rounded-2xl border border-stone-200 bg-white/90 px-4 py-4">
+                              <div className="flex items-center justify-center gap-4">
+                                <div className="flex flex-col items-center gap-1 text-[#8b2b22]">
+                                  <span className="text-xs tracking-[0.2em]">往上读</span>
+                                  <span className="text-xl">↑</span>
+                                </div>
+                                <div className="space-y-2">
+                                  {[
+                                    { label: "上", active: false },
+                                    { label: "五", active: false },
+                                    { label: "四", active: false },
+                                    { label: "三", active: false },
+                                    { label: "二", active: false },
+                                    { label: "初", active: true },
+                                  ].map(({ label, active }) => (
+                                    <div key={label} className="flex items-center gap-3">
+                                      <div className="w-5 text-[11px] tracking-[0.2em] text-stone-400">{label}</div>
+                                      <div
+                                        className={cn(
+                                          "h-3 w-28 rounded-full border",
+                                          active
+                                            ? "border-[#8b2b22]/30 bg-[#8b2b22]/10"
+                                            : "border-stone-200 bg-white",
+                                        )}
+                                      />
+                                      {active && (
+                                        <span className="rounded-full bg-[#8b2b22]/10 px-2 py-1 text-[11px] text-[#8b2b22]">
+                                          起点
+                                        </span>
+                                      )}
+                                    </div>
+                                  ))}
+                                </div>
+                              </div>
+                              <div className="mt-4 text-center text-xs text-stone-500">
+                                初爻在最下，上爻在最上，记录和读卦都按这个方向。
+                              </div>
                             </div>
                           </div>
                         )}
-                        {index === 2 && (
-                          <div className="flex items-center justify-between gap-3 text-center">
-                            <div className="flex-1 rounded-xl bg-white/80 px-3 py-3">
-                              <div className="text-xs tracking-[0.2em] text-stone-500 mb-1">本卦</div>
-                              <div className="text-sm font-serif text-stone-800">看当下</div>
+                        {item.key === "coins" && (
+                          <div className="space-y-4">
+                            <IntroStep index="02" label="先算出爻数" />
+                            <div className="rounded-2xl border border-stone-200 bg-white/90 px-4 py-4">
+                              <div className="grid grid-cols-[1fr_auto] gap-x-3 gap-y-2 text-sm font-serif text-stone-700">
+                                <div className="flex items-center justify-between rounded-xl bg-stone-50 px-3 py-2">
+                                  <span>正 正 正</span>
+                                  <span className="text-stone-500">2+2+2</span>
+                                </div>
+                                <div className="flex items-center justify-center rounded-xl bg-stone-900 px-3 py-2 text-white">6</div>
+                                <div className="flex items-center justify-between rounded-xl bg-stone-50 px-3 py-2">
+                                  <span>背 正 正</span>
+                                  <span className="text-stone-500">3+2+2</span>
+                                </div>
+                                <div className="flex items-center justify-center rounded-xl bg-stone-900 px-3 py-2 text-white">7</div>
+                                <div className="flex items-center justify-between rounded-xl bg-stone-50 px-3 py-2">
+                                  <span>背 背 正</span>
+                                  <span className="text-stone-500">3+3+2</span>
+                                </div>
+                                <div className="flex items-center justify-center rounded-xl bg-stone-900 px-3 py-2 text-white">8</div>
+                                <div className="flex items-center justify-between rounded-xl bg-stone-50 px-3 py-2">
+                                  <span>背 背 背</span>
+                                  <span className="text-stone-500">3+3+3</span>
+                                </div>
+                                <div className="flex items-center justify-center rounded-xl bg-[#8b2b22] px-3 py-2 text-white">9</div>
+                              </div>
+                              <div className="mt-4 flex items-center justify-center gap-3 text-xs text-stone-500">
+                                <span className="rounded-full bg-stone-100 px-2 py-1">正面 = 2</span>
+                                <span className="text-stone-300">·</span>
+                                <span className="rounded-full bg-stone-100 px-2 py-1">背面 = 3</span>
+                              </div>
                             </div>
-                            <div className="text-stone-400">→</div>
-                            <div className="flex-1 rounded-xl bg-white/80 px-3 py-3">
-                              <div className="text-xs tracking-[0.2em] text-stone-500 mb-1">动爻</div>
-                              <div className="text-sm font-serif text-stone-800">看变化</div>
+                          </div>
+                        )}
+                        {item.key === "change" && (
+                          <div className="space-y-4">
+                            <IntroStep index="03" label="老变少不变" />
+                            <div className="grid grid-cols-[1fr_auto_1fr] items-center gap-3">
+                              <div className="space-y-3">
+                                <div className="rounded-2xl border border-stone-200 bg-white/90 px-3 py-3">
+                                  <div className="mb-2 flex items-center justify-between">
+                                    <span className="text-[11px] tracking-[0.2em] text-stone-400">6</span>
+                                    <span className="text-xs text-[#8b2b22]">老阴</span>
+                                  </div>
+                                  <div className="flex items-center justify-between gap-3">
+                                    <span className="text-sm font-serif text-stone-700">老阴动</span>
+                                    <IntroLine type="yin" moving />
+                                  </div>
+                                </div>
+                                <div className="rounded-2xl border border-stone-200 bg-white/90 px-3 py-3">
+                                  <div className="mb-2 flex items-center justify-between">
+                                    <span className="text-[11px] tracking-[0.2em] text-stone-400">9</span>
+                                    <span className="text-xs text-[#8b2b22]">老阳</span>
+                                  </div>
+                                  <div className="flex items-center justify-between gap-3">
+                                    <span className="text-sm font-serif text-stone-700">老阳动</span>
+                                    <IntroLine type="yang" moving />
+                                  </div>
+                                </div>
+                              </div>
+                              <div className="flex flex-col items-center gap-2 text-[#8b2b22]">
+                                <span className="text-xl">→</span>
+                                <span className="text-[11px] tracking-[0.2em]">变</span>
+                              </div>
+                              <div className="space-y-3">
+                                <div className="rounded-2xl border border-[#8b2b22]/20 bg-[#8b2b22]/6 px-3 py-3">
+                                  <div className="mb-2 text-[11px] tracking-[0.2em] text-stone-400">结果</div>
+                                  <div className="flex items-center justify-between gap-3">
+                                    <span className="text-sm font-serif text-stone-700">变阳</span>
+                                    <IntroLine type="yang" />
+                                  </div>
+                                </div>
+                                <div className="rounded-2xl border border-[#8b2b22]/20 bg-[#8b2b22]/6 px-3 py-3">
+                                  <div className="mb-2 text-[11px] tracking-[0.2em] text-stone-400">结果</div>
+                                  <div className="flex items-center justify-between gap-3">
+                                    <span className="text-sm font-serif text-stone-700">变阴</span>
+                                    <IntroLine type="yin" />
+                                  </div>
+                                </div>
+                              </div>
                             </div>
-                            <div className="text-stone-400">→</div>
-                            <div className="flex-1 rounded-xl bg-white/80 px-3 py-3">
-                              <div className="text-xs tracking-[0.2em] text-stone-500 mb-1">变卦</div>
-                              <div className="text-sm font-serif text-stone-800">看后势</div>
+                            <div className="flex items-center justify-center gap-2 text-xs text-stone-500">
+                              <span>少阴少阳静</span>
+                              <span className="text-stone-300">·</span>
+                              <span>老阴老阳动</span>
+                            </div>
+                          </div>
+                        )}
+                        {item.key === "reading" && (
+                          <div className="space-y-4">
+                            <IntroStep index="04" label="按顺序判断" />
+                            <div className="grid grid-cols-[1fr_auto_1fr_auto_1fr] items-center gap-2 text-center">
+                              <div className="rounded-2xl border border-stone-200 bg-white/90 px-3 py-3">
+                                <div className="text-[11px] tracking-[0.2em] text-stone-400">STEP 1</div>
+                                <div className="mt-2 text-sm font-serif text-stone-800">本卦</div>
+                                <div className="mt-1 text-xs text-stone-500">看当下</div>
+                              </div>
+                              <div className="text-[#8b2b22] text-lg">→</div>
+                              <div className="rounded-2xl border border-[#8b2b22]/20 bg-[#8b2b22]/6 px-3 py-3">
+                                <div className="text-[11px] tracking-[0.2em] text-stone-400">STEP 2</div>
+                                <div className="mt-2 text-sm font-serif text-stone-800">动爻</div>
+                                <div className="mt-1 text-xs text-stone-500">看关键</div>
+                              </div>
+                              <div className="text-[#8b2b22] text-lg">→</div>
+                              <div className="rounded-2xl border border-stone-200 bg-white/90 px-3 py-3">
+                                <div className="text-[11px] tracking-[0.2em] text-stone-400">STEP 3</div>
+                                <div className="mt-2 text-sm font-serif text-stone-800">变卦</div>
+                                <div className="mt-1 text-xs text-stone-500">看后势</div>
+                              </div>
+                            </div>
+                            <div className="text-center text-xs text-stone-500">先定现状，再抓变化，最后看趋势。</div>
+                          </div>
+                        )}
+                        {item.key === "relations" && (
+                          <div className="space-y-4">
+                            <IntroStep index="05" label="先定所问对象" />
+                            <div className="grid grid-cols-2 gap-3">
+                              {[
+                                ["兄弟", "同类 / 竞争"],
+                                ["子孙", "结果 / 放松"],
+                                ["妻财", "财物 / 资源"],
+                                ["官鬼", "压力 / 工作"],
+                                ["父母", "文书 / 庇护"],
+                              ].map(([name, hint], idx) => (
+                                <div
+                                  key={name}
+                                  className={cn(
+                                    "rounded-2xl border bg-white/90 px-3 py-3",
+                                    idx === 4 ? "col-span-2 border-[#8b2b22]/20 bg-[#8b2b22]/6" : "border-stone-200",
+                                  )}
+                                >
+                                  <div className="text-sm font-serif text-stone-800">{name}</div>
+                                  <div className="mt-1 text-xs text-stone-500">{hint}</div>
+                                </div>
+                              ))}
+                            </div>
+                            <div className="text-center text-xs text-stone-500">到结果区时，先找你问的是哪一亲，再看它旺不旺、动不动。</div>
+                          </div>
+                        )}
+                        {item.key === "spirits" && (
+                          <div className="space-y-4">
+                            <IntroStep index="06" label="再看事情气氛" />
+                            <div className="grid grid-cols-2 gap-3">
+                              {[
+                                ["青龙", "顺喜"],
+                                ["朱雀", "言语"],
+                                ["勾陈", "拖延"],
+                                ["腾蛇", "虚惊"],
+                                ["白虎", "冲突"],
+                                ["玄武", "隐情"],
+                              ].map(([name, hint]) => (
+                                <div key={name} className="rounded-2xl border border-stone-200 bg-white/90 px-3 py-3">
+                                  <div className="flex items-center justify-between gap-3">
+                                    <span className="text-sm font-serif text-stone-800">{name}</span>
+                                    <span className="text-xs text-stone-500">{hint}</span>
+                                  </div>
+                                </div>
+                              ))}
+                            </div>
+                            <div className="text-center text-xs text-stone-500">到结果区时，再看对应那一亲带着什么气氛和表现方式。</div>
+                          </div>
+                        )}
+                      </div>
+                      <p className="text-sm leading-7 text-stone-700 font-serif">{item.body}</p>
+                      <div className="mt-4 flex flex-wrap gap-2">
+                        {item.points.map((point) => (
+                          <div
+                            key={point}
+                            className="rounded-full border border-stone-200 bg-white/80 px-3 py-1.5 text-xs text-stone-600"
+                          >
+                            {point}
+                          </div>
+                        ))}
+                      </div>
+                    </motion.article>
+                  );
+                })}
+              </div>
+
+              <div className="mt-4 grid grid-cols-1 md:grid-cols-2 gap-4">
+                {(["order", "coins"] as const).map((key, rowIndex) => {
+                  const item = basics.find((entry) => entry.key === key);
+                  if (!item) return null;
+                  const Icon = item.icon;
+
+                  return (
+                    <motion.article
+                      key={item.title}
+                      initial={{ opacity: 0, y: 12 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      transition={{ delay: 0.6 + rowIndex * 0.1 }}
+                      className="rounded-2xl border border-stone-200 bg-[linear-gradient(180deg,rgba(255,255,255,0.7),rgba(244,241,234,0.9))] p-5"
+                    >
+                      <div className="flex items-center gap-3 mb-4">
+                        <div className="w-9 h-9 rounded-full bg-stone-900 text-[#fdfbf7] flex items-center justify-center">
+                          <Icon className="w-4 h-4" />
+                        </div>
+                        <h3 className="font-serif text-lg text-stone-900">{item.title}</h3>
+                      </div>
+                      <div className="mb-4 rounded-2xl border border-stone-200 bg-[#f4f1ea]/90 px-4 py-4">
+                        {item.key === "order" && (
+                          <div className="space-y-4">
+                            <IntroStep index="07" label="从下往上读" />
+                            <div className="rounded-2xl border border-stone-200 bg-white/90 px-4 py-4">
+                              <div className="flex items-center justify-center gap-4">
+                                <div className="flex flex-col items-center gap-1 text-[#8b2b22]">
+                                  <span className="text-xs tracking-[0.2em]">往上读</span>
+                                  <span className="text-xl">↑</span>
+                                </div>
+                                <div className="space-y-2">
+                                  {[
+                                    { label: "上", active: false },
+                                    { label: "五", active: false },
+                                    { label: "四", active: false },
+                                    { label: "三", active: false },
+                                    { label: "二", active: false },
+                                    { label: "初", active: true },
+                                  ].map(({ label, active }) => (
+                                    <div key={label} className="flex items-center gap-3">
+                                      <div className="w-5 text-[11px] tracking-[0.2em] text-stone-400">{label}</div>
+                                      <div
+                                        className={cn(
+                                          "h-3 w-28 rounded-full border",
+                                          active
+                                            ? "border-[#8b2b22]/30 bg-[#8b2b22]/10"
+                                            : "border-stone-200 bg-white",
+                                        )}
+                                      />
+                                      {active && (
+                                        <span className="rounded-full bg-[#8b2b22]/10 px-2 py-1 text-[11px] text-[#8b2b22]">
+                                          起点
+                                        </span>
+                                      )}
+                                    </div>
+                                  ))}
+                                </div>
+                              </div>
+                              <div className="mt-4 text-center text-xs text-stone-500">
+                                初爻在最下，上爻在最上，记录和读卦都按这个方向。
+                              </div>
+                            </div>
+                          </div>
+                        )}
+                                {item.key === "coins" && (
+                          <div className="space-y-4">
+                            <IntroStep index="08" label="先算出爻数" />
+                            <div className="rounded-2xl border border-stone-200 bg-white/90 px-4 py-4">
+                              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-sm font-serif text-stone-700">
+                                <div className="rounded-2xl border border-stone-200 bg-stone-50 px-3 py-3">
+                                  <div className="grid grid-cols-[auto_1fr_auto] items-center gap-3">
+                                    <div className="flex flex-col items-center gap-1">
+                                      <IntroCoinTriple pattern={["front", "front", "front"]} />
+                                      <span className="text-center text-xs text-stone-500">2 + 2 + 2</span>
+                                    </div>
+                                    <div />
+                                    <span className="rounded-lg bg-[#8b2b22] px-2.5 py-1 text-white">6</span>
+                                  </div>
+                                </div>
+                                <div className="rounded-2xl border border-stone-200 bg-stone-50 px-3 py-3">
+                                  <div className="grid grid-cols-[auto_1fr_auto] items-center gap-3">
+                                    <div className="flex flex-col items-center gap-1">
+                                      <IntroCoinTriple pattern={["back", "front", "front"]} />
+                                      <span className="text-center text-xs text-stone-500">3 + 2 + 2</span>
+                                    </div>
+                                    <div />
+                                    <span className="rounded-lg bg-stone-900 px-2.5 py-1 text-white">7</span>
+                                  </div>
+                                </div>
+                                <div className="rounded-2xl border border-stone-200 bg-stone-50 px-3 py-3">
+                                  <div className="grid grid-cols-[auto_1fr_auto] items-center gap-3">
+                                    <div className="flex flex-col items-center gap-1">
+                                      <IntroCoinTriple pattern={["back", "back", "front"]} />
+                                      <span className="text-center text-xs text-stone-500">3 + 3 + 2</span>
+                                    </div>
+                                    <div />
+                                    <span className="rounded-lg bg-stone-900 px-2.5 py-1 text-white">8</span>
+                                  </div>
+                                </div>
+                                <div className="rounded-2xl border border-[#8b2b22]/20 bg-[#8b2b22]/6 px-3 py-3">
+                                  <div className="grid grid-cols-[auto_1fr_auto] items-center gap-3">
+                                    <div className="flex flex-col items-center gap-1">
+                                      <IntroCoinTriple pattern={["back", "back", "back"]} />
+                                      <span className="text-center text-xs text-stone-500">3 + 3 + 3</span>
+                                    </div>
+                                    <div />
+                                    <span className="rounded-lg bg-[#8b2b22] px-2.5 py-1 text-white">9</span>
+                                  </div>
+                                </div>
+                              </div>
+                              <div className="mt-4 flex items-center justify-center gap-3 text-xs text-stone-500">
+                                <span className="rounded-full bg-stone-100 px-2 py-1">正面 = 2</span>
+                                <span className="text-stone-300">·</span>
+                                <span className="rounded-full bg-stone-100 px-2 py-1">背面 = 3</span>
+                              </div>
                             </div>
                           </div>
                         )}
@@ -456,6 +970,10 @@ export default function App() {
                     </motion.article>
                   );
                 })}
+              </div>
+
+              <div className="mt-4 rounded-2xl border border-stone-200 bg-white/70 px-4 py-3 text-sm text-stone-600 font-serif">
+                实操提示：先想问题，再摇六次，每次生成一爻，系统会按自下而上的顺序成卦。
               </div>
             </section>
 
@@ -569,24 +1087,43 @@ export default function App() {
                 </motion.div>
                 
                 {hexData && (
-                  <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.2 }} className="mb-6 text-stone-700 font-serif leading-relaxed text-sm bg-stone-100/50 p-4 rounded-2xl border border-stone-200 w-full">
+                  <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.2 }} className="mb-6 min-h-[6.5rem] text-stone-700 font-serif leading-relaxed text-sm bg-stone-100/50 p-4 rounded-2xl border border-stone-200 w-full">
                     <span className="text-[#8b2b22] mr-2 font-bold">卦辞:</span>
                     {getGuaci(hexData.originalBinary)}
                   </motion.div>
                 )}
 
-                <motion.div layout className="flex flex-col-reverse items-center justify-center py-2 w-full">
-                  {lines.map((line, i) => (
-                    <HexagramLine key={i} value={line} index={i} />
-                  ))}
-                  {!hexData && Array.from({ length: 6 - lines.length }).map((_, i) => (
-                    <div key={`empty-${i}`} className="flex items-center justify-center gap-4 sm:gap-6 w-full max-w-[280px] sm:max-w-[320px] my-1.5 sm:my-2">
-                      <div className="w-8 sm:w-10" />
-                      <div className="flex-1 h-3 sm:h-4 border-2 border-dashed border-stone-300 opacity-50" />
-                      <div className="w-6 sm:w-8" />
+                {hexData && (
+                  <div className="mb-2 flex items-center justify-center gap-2 w-full">
+                    <div className="grid w-full max-w-[24rem] grid-cols-[2.5rem_minmax(0,1fr)_2.8rem_2.8rem_3rem] items-center gap-1.5 px-1 text-[10px] tracking-[0.18em] text-stone-400 sm:max-w-[29rem] sm:grid-cols-[3rem_minmax(0,1fr)_3.5rem_3.5rem_3.75rem] sm:gap-2 sm:text-xs">
+                      <span className="text-right">爻位</span>
+                      <span className="text-center">爻象</span>
+                      <span className="text-center">六亲</span>
+                      <span className="text-center">六神</span>
+                      <span className="text-center">纳甲</span>
                     </div>
-                  ))}
-                </motion.div>
+                    <div className="w-10 sm:w-12 text-center text-[10px] tracking-[0.18em] text-stone-400 sm:text-xs">
+                      经卦
+                    </div>
+                  </div>
+                )}
+                <div className="flex items-stretch justify-center gap-2 w-full">
+                  <motion.div layout className="flex flex-col-reverse items-center justify-center py-2 w-full max-w-[24rem] sm:max-w-[29rem]">
+                    {(hexData ? hexData.originalLines : lines.map((line, i) => createHexagramLineDetail(line, i))).map((line) => (
+                      <HexagramLine key={line.index} line={line} />
+                    ))}
+                    {!hexData && Array.from({ length: 6 - lines.length }).map((_, i) => (
+                      <div key={`empty-${i}`} className="flex items-center justify-center gap-4 sm:gap-6 w-full max-w-[280px] sm:max-w-[320px] my-1.5 sm:my-2">
+                        <div className="w-8 sm:w-10" />
+                        <div className="flex-1 h-3 sm:h-4 border-2 border-dashed border-stone-300 opacity-50" />
+                        <div className="w-6 sm:w-8" />
+                      </div>
+                    ))}
+                  </motion.div>
+                  {hexData && (
+                    <TrigramBraceColumn upper={hexData.originalTrigrams.upper} lower={hexData.originalTrigrams.lower} />
+                  )}
+                </div>
 
                 {hexData && (
                   <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.3 }} className="mt-6 space-y-2 w-full">
@@ -623,15 +1160,30 @@ export default function App() {
                         <p className="text-3xl sm:text-4xl font-serif text-[#8b2b22] tracking-widest">{hexData.changedName}</p>
                       </div>
                       
-                      <div className="mb-6 text-stone-700 font-serif leading-relaxed text-sm bg-stone-100/50 p-4 rounded-2xl border border-stone-200 w-full">
+                      <div className="mb-6 min-h-[6.5rem] text-stone-700 font-serif leading-relaxed text-sm bg-stone-100/50 p-4 rounded-2xl border border-stone-200 w-full">
                         <span className="text-[#8b2b22] mr-2 font-bold">卦辞:</span>
                         {getGuaci(hexData.changedBinary)}
                       </div>
 
-                      <div className="flex flex-col-reverse items-center justify-center py-2 w-full">
-                        {hexData.changedLineValues.map((line, i) => (
-                          <HexagramLine key={`changed-${i}`} value={line} index={i} />
-                        ))}
+                      <div className="mb-2 flex items-center justify-center gap-2 w-full">
+                        <div className="grid w-full max-w-[24rem] grid-cols-[2.5rem_minmax(0,1fr)_2.8rem_2.8rem_3rem] items-center gap-1.5 px-1 text-[10px] tracking-[0.18em] text-stone-400 sm:max-w-[29rem] sm:grid-cols-[3rem_minmax(0,1fr)_3.5rem_3.5rem_3.75rem] sm:gap-2 sm:text-xs">
+                          <span className="text-right">爻位</span>
+                          <span className="text-center">爻象</span>
+                          <span className="text-center">六亲</span>
+                          <span className="text-center">六神</span>
+                          <span className="text-center">纳甲</span>
+                        </div>
+                        <div className="w-10 sm:w-12 text-center text-[10px] tracking-[0.18em] text-stone-400 sm:text-xs">
+                          经卦
+                        </div>
+                      </div>
+                      <div className="flex items-stretch justify-center gap-2 w-full">
+                        <div className="flex flex-col-reverse items-center justify-center py-2 w-full max-w-[24rem] sm:max-w-[29rem]">
+                          {hexData.changedLines.map((line) => (
+                            <HexagramLine key={`changed-${line.index}`} line={line} />
+                          ))}
+                        </div>
+                        <TrigramBraceColumn upper={hexData.changedTrigrams.upper} lower={hexData.changedTrigrams.lower} />
                       </div>
 
                       <div className="mt-6 space-y-2 w-full">
@@ -696,6 +1248,14 @@ export default function App() {
             animate={{ opacity: 1, y: 0 }}
             className="glass-panel rounded-3xl p-6 sm:p-8 prose prose-stone prose-base sm:prose-lg max-w-none prose-headings:font-serif prose-headings:font-normal prose-a:text-[#8b2b22] prose-strong:text-[#6b1e16] prose-strong:font-normal"
           >
+            <div className="mb-6 rounded-2xl border border-stone-200 bg-stone-50/80 px-4 py-3 not-prose">
+              <div className="text-sm font-serif text-stone-700">阅读提示</div>
+              <div className="mt-2 flex flex-wrap gap-2 text-xs text-stone-500">
+                <span className="rounded-full border border-stone-200 bg-white px-3 py-1">六亲：先看你问的是谁</span>
+                <span className="rounded-full border border-stone-200 bg-white px-3 py-1">六神：再看事情怎么发生</span>
+                <span className="rounded-full border border-stone-200 bg-white px-3 py-1">回到本卦、动爻、变卦一起判断</span>
+              </div>
+            </div>
             <div className="markdown-body font-serif leading-relaxed text-stone-800">
               {parsedInterpretation.answer ? (
                 <Markdown>{parsedInterpretation.answer}</Markdown>

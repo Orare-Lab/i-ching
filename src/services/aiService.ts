@@ -3,10 +3,11 @@ import { buildInterpretationPrompt } from "../lib/divination";
 
 interface InterpretOptions {
   onChunk?: (chunk: string, fullText: string) => void;
+  castedAt?: string | null;
 }
 
 export async function interpretHexagram(question: string, lines: LineValue[], options: InterpretOptions = {}) {
-  const prompt = buildInterpretationPrompt(question, lines);
+  const prompt = buildInterpretationPrompt(question, lines, { castedAt: options.castedAt });
 
   try {
     const response = await fetch("/api/interpret", {

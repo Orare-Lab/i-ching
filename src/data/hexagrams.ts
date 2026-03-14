@@ -1,3 +1,5 @@
+import { buildHexagramLineAnnotations, HexagramComputationContext, HexagramLineAnnotation } from "../lib/hexagramAnnotations";
+
 export const hexagramNames: Record<string, string> = {
   "111111": "乾为天", "000000": "坤为地", "100010": "水雷屯", "010001": "山水蒙",
   "111010": "水天需", "010111": "天水讼", "010000": "地水师", "000010": "水地比",
@@ -18,8 +20,98 @@ export const hexagramNames: Record<string, string> = {
 };
 
 export type LineValue = 6 | 7 | 8 | 9;
+export type LinePositionName = "初" | "二" | "三" | "四" | "五" | "上";
 
-export function parseHexagram(lines: LineValue[]) {
+export interface HexagramLineDetail {
+  index: number;
+  lineNumber: number;
+  positionName: LinePositionName;
+  value: LineValue;
+  isYang: boolean;
+  isMoving: boolean;
+  label: string;
+  marker: "○" | "×" | null;
+  annotation: HexagramLineAnnotation;
+}
+
+export interface ParsedHexagram {
+  originalBinary: string;
+  changedBinary: string;
+  originalName: string;
+  changedName: string;
+  movingLines: number[];
+  changedLineValues: LineValue[];
+  originalLines: HexagramLineDetail[];
+  changedLines: HexagramLineDetail[];
+  originalTrigrams: { upper: string; lower: string };
+  changedTrigrams: { upper: string; lower: string };
+}
+
+const POSITION_NAMES: LinePositionName[] = ["初", "二", "三", "四", "五", "上"];
+const TRIGRAM_NAMES: Record<string, string> = {
+  "111": "乾",
+  "110": "兑",
+  "101": "离",
+  "100": "震",
+  "011": "巽",
+  "010": "坎",
+  "001": "艮",
+  "000": "坤",
+};
+
+function buildLineLabel(value: LineValue, index: number): string {
+  const isYang = value === 7 || value === 9;
+  const yinYangChar = isYang ? "九" : "六";
+  const positionChar = POSITION_NAMES[index];
+  return index === 0 || index === 5 ? `${positionChar}${yinYangChar}` : `${yinYangChar}${positionChar}`;
+}
+
+function buildLineDetail(
+  value: LineValue,
+  index: number,
+  annotation: HexagramLineAnnotation,
+): HexagramLineDetail {
+  const isYang = value === 7 || value === 9;
+  const isMoving = value === 6 || value === 9;
+
+  return {
+    index,
+    lineNumber: index + 1,
+    positionName: POSITION_NAMES[index],
+    value,
+    isYang,
+    isMoving,
+    label: buildLineLabel(value, index),
+    marker: isMoving ? (value === 9 ? "○" : "×") : null,
+    annotation,
+  };
+}
+
+export function createHexagramLineDetail(value: LineValue, index: number): HexagramLineDetail {
+  return buildLineDetail(value, index, {
+    heavenlyStem: null,
+    earthlyBranch: null,
+    element: null,
+    sixRelative: null,
+    sixSpirit: null,
+    worldResponse: null,
+    status: {
+      naJia: "pending",
+      sixRelative: "pending",
+      sixSpirit: "needs_context",
+      worldResponse: "pending",
+    },
+  });
+}
+
+export function getTrigramPair(binary: string) {
+  return {
+    lower: TRIGRAM_NAMES[binary.slice(0, 3)] || "未知",
+    upper: TRIGRAM_NAMES[binary.slice(3)] || "未知",
+  };
+}
+
+export function parseHexagram(lines: LineValue[], context: HexagramComputationContext = {}): ParsedHexagram {
   const original = lines.map(line => (line === 7 || line === 9 ? 1 : 0));
   const changed = lines.map(line => {
       if (line === 9) return 0; // 老阳变阴
@@ -35,6 +127,8 @@ export function parseHexagram(lines: LineValue[]) {
 
   const originalBinary = original.join('');
   const changedBinary = changed.join('');
+  const originalAnnotations = buildHexagramLineAnnotations(originalBinary, lines, context);
+  const changedAnnotations = buildHexagramLineAnnotations(changedBinary, changedLineValues, context);
 
   return {
       originalBinary,
@@ -42,6 +136,10 @@ export function parseHexagram(lines: LineValue[]) {
       originalName: hexagramNames[originalBinary] || "未知",
       changedName: hexagramNames[changedBinary] || "未知",
       movingLines: lines.map((l, i) => (l === 9 || l === 6 ? i + 1 : null)).filter(v => v !== null),
-      changedLineValues
+      changedLineValues,
+      originalLines: lines.map((line, index) => buildLineDetail(line, index, originalAnnotations[index])),
+      changedLines: changedLineValues.map((line, index) => buildLineDetail(line, index, changedAnnotations[index])),
+      originalTrigrams: getTrigramPair(originalBinary),
+      changedTrigrams: getTrigramPair(changedBinary),
   };
 }
