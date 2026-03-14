@@ -38,6 +38,8 @@ npm run start
 
 生产模式下，Express 会同时提供静态前端资源和 `/api/interpret` 接口。
 
+如果部署到 Vercel，`/api/interpret` 由 [api/interpret.js](/Users/wangkaixuan/Coding/i-ching/api/interpret.js) 提供；记得在 Vercel 项目里配置 `OPENAI_API_KEY`、`OPENAI_BASE_URL`、`OPENAI_MODEL`。
+
 ## 当前实现
 
 - 解卦 prompt 会注入本卦卦辞、动爻爻辞、变卦卦辞和对应变爻信息。

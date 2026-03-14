@@ -511,7 +511,7 @@ export default function App() {
                   {isInterpreting ? (
                     <>
                       <Loader2 className="w-5 h-5 animate-spin" />
-                      大师解卦中...
+                      解卦中，请耐心等候
                     </>
                   ) : (
                     <>
