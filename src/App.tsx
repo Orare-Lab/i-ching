@@ -189,13 +189,6 @@ export default function App() {
                   <History className="w-4 h-4" />
                   历史记录
                 </button>
-                <button 
-                  onClick={reset}
-                  className="p-2.5 hover:bg-stone-200/50 rounded-full transition-colors text-stone-500 hover:text-stone-900"
-                  title="重新起卦"
-                >
-                  <RefreshCw className="w-5 h-5" strokeWidth={1.5} />
-                </button>
               </>
             )}
           </div>
@@ -336,7 +329,14 @@ export default function App() {
               </section>
 
               {/* Tossing Area */}
-              <section className="glass-panel rounded-3xl p-5 sm:p-6 flex flex-col items-center justify-center">
+              <section className="glass-panel rounded-3xl p-5 sm:p-6 flex flex-col items-center justify-center relative">
+                <button
+                  onClick={reset}
+                  className="absolute right-5 top-5 sm:right-6 sm:top-6 p-2.5 hover:bg-stone-200/50 rounded-full transition-colors text-stone-500 hover:text-stone-900"
+                  title="重新起卦"
+                >
+                  <RefreshCw className="w-5 h-5" strokeWidth={1.5} />
+                </button>
                 <div className="flex gap-4 sm:gap-6 mb-6 h-24 items-center">
                   <Coin value={coins[0]} tossRound={tossRound} delay={0} />
                   <Coin value={coins[1]} tossRound={tossRound} delay={0.1} />
@@ -369,15 +369,37 @@ export default function App() {
               
               {/* 本卦 / 摇卦中 */}
               <motion.div layout className="flex flex-col items-center lg:items-start w-full lg:w-1/2 max-w-md">
-                <motion.div layout className="text-center lg:text-left mb-4 min-h-[4rem]">
+                <motion.div layout className="mb-4 min-h-[4rem] w-full flex items-center justify-center text-center">
                   {hexData ? (
-                    <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }}>
+                    <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="flex w-full flex-col items-center">
                       <h3 className="text-xs sm:text-sm text-stone-500 uppercase tracking-[0.3em] mb-1">本卦</h3>
                       <p className="text-3xl sm:text-4xl font-serif text-stone-900 tracking-widest">{hexData.originalName}</p>
                     </motion.div>
                   ) : (
-                    <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }}>
-                      <h3 className="text-xs sm:text-sm text-stone-500 uppercase tracking-[0.3em] mb-1 mt-2">起卦中...</h3>
+                    <motion.div
+                      initial={{ opacity: 0, y: 8 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      className="flex min-h-[4rem] w-full flex-col items-center justify-center text-center"
+                    >
+                      <div className="inline-flex items-center gap-1.5 rounded-full border border-[#8b2b22]/15 bg-white/65 px-4 py-1.5 text-sm sm:text-base font-serif tracking-[0.2em] text-stone-700 shadow-sm">
+                        <span>起卦中</span>
+                        <span className="flex items-center gap-1">
+                          {[0, 1, 2].map((dot) => (
+                            <motion.span
+                              key={dot}
+                              animate={{ opacity: [0.25, 1, 0.25], y: [0, -2, 0] }}
+                              transition={{ duration: 1.2, repeat: Infinity, delay: dot * 0.18, ease: "easeInOut" }}
+                              className="h-1 w-1 rounded-full bg-[#8b2b22]/60"
+                            />
+                          ))}
+                        </span>
+                      </div>
+                      <p className="mt-3 text-[11px] sm:text-xs tracking-[0.25em] text-stone-400">
+                        第 {Math.min(lines.length + 1, 6)} 爻生成中
+                      </p>
+                      <p className="mt-1 text-[11px] sm:text-xs tracking-[0.2em] text-stone-400/90">
+                        已成 {lines.length} / 6 爻
+                      </p>
                     </motion.div>
                   )}
                 </motion.div>
@@ -432,7 +454,7 @@ export default function App() {
                   
                   {hexData.movingLines.length > 0 ? (
                     <>
-                      <div className="text-center lg:text-left mb-4 min-h-[4rem]">
+                      <div className="mb-4 min-h-[4rem] w-full flex flex-col items-center justify-center text-center">
                         <h3 className="text-xs sm:text-sm text-stone-500 uppercase tracking-[0.3em] mb-1">变卦</h3>
                         <p className="text-3xl sm:text-4xl font-serif text-[#8b2b22] tracking-widest">{hexData.changedName}</p>
                       </div>
