@@ -79,17 +79,34 @@ export default function App() {
       try {
         const response = await fetch("/api/me");
         if (!response.ok) {
-          throw new Error("加载登录状态失败。");
+          const rawText = await response.text().catch(() => "");
+          let errorDetail = rawText;
+
+          try {
+            const parsed = rawText ? JSON.parse(rawText) : null;
+            errorDetail =
+              parsed && typeof parsed === "object"
+                ? JSON.stringify(parsed)
+                : rawText;
+          } catch {
+            errorDetail = rawText;
+          }
+
+          throw new Error(
+            `加载登录状态失败: /api/me -> ${response.status}${errorDetail ? ` ${errorDetail}` : ""}`,
+          );
         }
 
         const data = await response.json();
         if (!cancelled) {
           setAuthStatus(data.authenticated ? "authenticated" : "unauthenticated");
         }
-      } catch {
+      } catch (error) {
         if (!cancelled) {
           setAuthStatus("unauthenticated");
-          setAuthError("无法确认登录状态，请稍后重试。");
+          setAuthError(
+            error instanceof Error ? error.message : "无法确认登录状态，请稍后重试。",
+          );
         }
       }
     }

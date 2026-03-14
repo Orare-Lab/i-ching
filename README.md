@@ -48,6 +48,23 @@ npm run start
 
 如果部署到 Vercel，`/api/interpret` 由 [api/interpret.js](/Users/wangkaixuan/Coding/i-ching/api/interpret.js) 提供；记得在 Vercel 项目里配置 `OPENAI_API_KEY`、`OPENAI_BASE_URL`、`OPENAI_MODEL`。
 
+Vercel 部署说明：
+
+- 项目根目录保持为仓库根目录。
+- 构建命令使用 `npm run build`。
+- 前端输出目录是 `dist`。
+- `api/*.ts` 会作为 Vercel Functions 部署。
+- 需要在 Vercel 项目环境变量里配置：
+  - `OPENAI_API_KEY`
+  - `OPENAI_BASE_URL`
+  - `OPENAI_MODEL`
+  - `OPENAI_API_PATH`
+  - `OPENAI_API_STYLE`
+  - `SESSION_SECRET`
+  - `INVITE_CODES`
+
+如果首页提示无法确认登录状态，直接访问 `/api/me`，前端现在也会显示该接口的真实状态码和响应内容，便于判断是 `404` 还是 `500`。
+
 ## 当前实现
 
 - 解卦 prompt 会注入本卦卦辞、动爻爻辞、变卦卦辞和对应变爻信息。

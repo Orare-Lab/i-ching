@@ -1,5 +1,8 @@
-import { meHandler } from "../server/authHandlers";
+import { withErrorBoundary } from "./_utils";
 
 export default async function handler(req: unknown, res: unknown) {
-  return meHandler(req as never, res as never);
+  return withErrorBoundary(res as never, async () => {
+    const { meHandler } = await import("../server/authHandlers");
+    return meHandler(req as never, res as never);
+  });
 }
