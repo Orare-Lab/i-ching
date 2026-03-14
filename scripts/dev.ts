@@ -1,8 +1,8 @@
-import { spawn } from "node:child_process";
+import { spawn, type ChildProcess } from "node:child_process";
 
-const processes = [];
+const processes: Array<{ name: string; child: ChildProcess }> = [];
 
-function run(name, command, args) {
+function run(name: string, command: string, args: string[]) {
   const child = spawn(command, args, {
     stdio: "inherit",
     env: process.env,
@@ -20,9 +20,13 @@ function run(name, command, args) {
 
 function shutdown() {
   while (processes.length > 0) {
-    const { child } = processes.pop();
-    if (!child.killed) {
-      child.kill("SIGTERM");
+    const processEntry = processes.pop();
+    if (!processEntry) {
+      continue;
+    }
+
+    if (!processEntry.child.killed) {
+      processEntry.child.kill("SIGTERM");
     }
   }
 }
@@ -30,5 +34,5 @@ function shutdown() {
 process.on("SIGINT", shutdown);
 process.on("SIGTERM", shutdown);
 
-run("server", "tsx", ["server/index.ts"]);
+run("server", "npm", ["run", "dev:server"]);
 run("client", "npm", ["run", "dev:client"]);
