@@ -2,6 +2,7 @@ import "dotenv/config";
 import express from "express";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
+import { logoutHandler, meHandler, redeemInviteHandler } from "./authHandlers.js";
 import interpretHandler from "./interpretHandler.js";
 
 const __filename = fileURLToPath(import.meta.url);
@@ -14,6 +15,9 @@ const port = Number(process.env.PORT || 3001);
 
 app.use(express.json({ limit: "1mb" }));
 
+app.get("/api/me", meHandler);
+app.post("/api/redeem-invite", redeemInviteHandler);
+app.post("/api/logout", logoutHandler);
 app.all("/api/interpret", interpretHandler);
 
 if (process.env.NODE_ENV === "production") {

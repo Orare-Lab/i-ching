@@ -1,3 +1,5 @@
+import { getAuthenticatedSession } from "./auth.js";
+
 function getPrompt(body) {
   if (!body) return "";
   if (typeof body === "string") {
@@ -16,6 +18,10 @@ export default async function interpretHandler(req, res) {
   if (req.method !== "POST") {
     res.setHeader("Allow", "POST");
     return res.status(405).json({ error: "仅支持 POST 请求。" });
+  }
+
+  if (!getAuthenticatedSession(req)) {
+    return res.status(401).json({ error: "请先输入有效邀请码。" });
   }
 
   const apiKey = process.env.OPENAI_API_KEY;

@@ -10,12 +10,16 @@
 OPENAI_API_KEY=
 OPENAI_BASE_URL=https://api.openai.com/v1
 OPENAI_MODEL=gpt-4o
+SESSION_SECRET=replace_with_a_long_random_string
+INVITE_CODES=demo-invite-1,demo-invite-2
 ```
 
 说明：
 
 - `OPENAI_API_KEY` 只在服务端使用，不再暴露给浏览器。
 - 前端统一调用 `/api/interpret`，由服务端转发到 OpenAI 兼容接口。
+- `INVITE_CODES` 是逗号分隔的邀请码白名单；只有兑换成功的会话才能调用解卦接口。
+- `SESSION_SECRET` 用于签发访问会话，生产环境请设置为独立随机字符串。
 
 ## 本地开发
 
@@ -45,3 +49,4 @@ npm run start
 - 解卦 prompt 会注入本卦卦辞、动爻爻辞、变卦卦辞和对应变爻信息。
 - 自动起卦与手动起卦共用同一套起爻逻辑和动画节奏。
 - 历史记录默认只保留最近 50 条，列表存摘要，全文按展开时读取。
+- 站点已支持邀请码访问控制；未通过邀请码验证时不能调用 `/api/interpret`。

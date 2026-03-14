@@ -1,4 +1,4 @@
-import { useRef, useState } from "react";
+import { FormEvent, useEffect, useRef, useState } from "react";
 import { motion } from "motion/react";
 import Markdown from "react-markdown";
 import { Loader2, RefreshCw, Sparkles, History, ArrowLeft, BookOpen, GitCompareArrows, CircleDot } from "lucide-react";
@@ -55,6 +55,10 @@ function IntroLine({ type, moving = false }: { type: "yang" | "yin"; moving?: bo
 }
 
 export default function App() {
+  const [authStatus, setAuthStatus] = useState<"loading" | "authenticated" | "unauthenticated">("loading");
+  const [inviteCode, setInviteCode] = useState("");
+  const [authError, setAuthError] = useState<string | null>(null);
+  const [isRedeemingInvite, setIsRedeemingInvite] = useState(false);
   const [question, setQuestion] = useState("");
   const [lines, setLines] = useState<LineValue[]>([]);
   const [isTossing, setIsTossing] = useState(false);
@@ -66,6 +70,34 @@ export default function App() {
   const [history, setHistory] = useState<DivinationSummary[]>(() => loadHistorySummaries());
   const tossLockRef = useRef(false);
   const autoTossingRef = useRef(false);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    async function loadSession() {
+      try {
+        const response = await fetch("/api/me");
+        if (!response.ok) {
+          throw new Error("加载登录状态失败。");
+        }
+
+        const data = await response.json();
+        if (!cancelled) {
+          setAuthStatus(data.authenticated ? "authenticated" : "unauthenticated");
+        }
+      } catch {
+        if (!cancelled) {
+          setAuthStatus("unauthenticated");
+          setAuthError("无法确认登录状态，请稍后重试。");
+        }
+      }
+    }
+
+    loadSession();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   const appendGeneratedLine = async () => {
     if (lines.length >= 6 || tossLockRef.current) return false;
@@ -145,9 +177,58 @@ export default function App() {
 
       setHistory(saveHistoryRecord(newRecord));
     } catch (error: any) {
+      if (typeof error?.message === "string" && error.message.includes("邀请码")) {
+        setAuthStatus("unauthenticated");
+        setAuthError("登录状态已失效，请重新输入邀请码。");
+      }
       alert(error.message || "解卦失败，请检查网络或API Key配置。");
     } finally {
       setIsInterpreting(false);
+    }
+  };
+
+  const handleRedeemInvite = async (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    if (!inviteCode.trim()) {
+      setAuthError("请输入邀请码。");
+      return;
+    }
+
+    setIsRedeemingInvite(true);
+    setAuthError(null);
+
+    try {
+      const response = await fetch("/api/redeem-invite", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          inviteCode: inviteCode.trim(),
+        }),
+      });
+
+      const data = await response.json().catch(() => ({}));
+      if (!response.ok) {
+        throw new Error(data.error || "邀请码校验失败。");
+      }
+
+      setInviteCode("");
+      setAuthStatus("authenticated");
+    } catch (error) {
+      setAuthError(error instanceof Error ? error.message : "邀请码校验失败。");
+    } finally {
+      setIsRedeemingInvite(false);
+    }
+  };
+
+  const handleLogout = async () => {
+    try {
+      await fetch("/api/logout", { method: "POST" });
+    } finally {
+      setAuthStatus("unauthenticated");
+      setAuthError(null);
+      reset();
     }
   };
 
@@ -156,6 +237,59 @@ export default function App() {
   };
 
   const hexData = lines.length === 6 ? parseHexagram(lines) : null;
+
+  if (authStatus === "loading") {
+    return (
+      <div className="min-h-screen bg-[#f4f1ea] text-stone-800 flex items-center justify-center px-6">
+        <div className="glass-panel rounded-3xl p-8 text-center max-w-md w-full">
+          <Loader2 className="w-8 h-8 animate-spin mx-auto text-[#8b2b22]" />
+          <p className="mt-4 font-serif tracking-[0.2em] text-stone-600">正在确认访问权限</p>
+        </div>
+      </div>
+    );
+  }
+
+  if (authStatus !== "authenticated") {
+    return (
+      <div className="min-h-screen bg-[#f4f1ea] paper-texture text-stone-800 px-4 py-8 sm:px-6">
+        <div className="max-w-3xl mx-auto min-h-[calc(100vh-4rem)] flex items-center">
+          <div className="glass-panel rounded-[2rem] p-6 sm:p-8 lg:p-10 w-full relative overflow-hidden">
+            <div className="absolute top-[-10%] right-[-5%] w-48 h-48 rounded-full bg-[#8b2b22]/10 blur-[100px] pointer-events-none" />
+            <div className="max-w-xl">
+              <p className="text-xs tracking-[0.45em] text-[#8b2b22] mb-4">INVITE ONLY</p>
+              <h1 className="text-3xl sm:text-4xl font-serif tracking-[0.2em] text-stone-900">六爻起卦</h1>
+              <p className="mt-4 text-sm sm:text-base leading-8 text-stone-600 font-serif">
+                当前站点已开启邀请码访问控制。输入有效邀请码后，才可进入起卦与解卦流程。
+              </p>
+
+              <form onSubmit={handleRedeemInvite} className="mt-8 space-y-4">
+                <label htmlFor="inviteCode" className="block text-xs tracking-[0.3em] text-stone-500">
+                  邀请码
+                </label>
+                <input
+                  id="inviteCode"
+                  value={inviteCode}
+                  onChange={(event) => setInviteCode(event.target.value)}
+                  placeholder="请输入邀请码"
+                  className="w-full rounded-2xl border border-stone-200 bg-white/80 px-5 py-4 text-lg font-serif outline-none transition-all focus:border-[#8b2b22]/40 focus:ring-1 focus:ring-[#8b2b22]/40"
+                  autoComplete="one-time-code"
+                />
+                {authError && <p className="text-sm text-[#8b2b22]">{authError}</p>}
+                <button
+                  type="submit"
+                  disabled={isRedeemingInvite}
+                  className="inline-flex items-center justify-center gap-3 rounded-2xl bg-stone-900 px-6 py-4 text-[#fdfbf7] transition-all hover:bg-stone-800 disabled:opacity-70"
+                >
+                  {isRedeemingInvite ? <Loader2 className="w-5 h-5 animate-spin" /> : <Sparkles className="w-5 h-5" strokeWidth={1.5} />}
+                  验证邀请码
+                </button>
+              </form>
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-[#f4f1ea] paper-texture text-stone-800 font-sans selection:bg-[#8b2b22]/20 relative overflow-hidden">
@@ -188,6 +322,12 @@ export default function App() {
                 >
                   <History className="w-4 h-4" />
                   历史记录
+                </button>
+                <button
+                  onClick={handleLogout}
+                  className="px-4 py-2 hover:bg-stone-200/50 rounded-full transition-colors text-stone-500 hover:text-stone-900 text-sm"
+                >
+                  退出
                 </button>
               </>
             )}
