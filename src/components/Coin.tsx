@@ -8,6 +8,9 @@ interface CoinProps {
 }
 
 export function Coin({ value, tossRound, delay = 0 }: CoinProps) {
+  const coinThickness = 6;
+  const faceOffset = coinThickness / 2;
+
   // 记录总旋转角度，确保每次摇卦都是向前翻转，不会倒转
   const totalRotation = useRef(value === 1 ? 180 : 0);
   const lastAnimatedSignature = useRef("0-initial");
@@ -38,12 +41,21 @@ export function Coin({ value, tossRound, delay = 0 }: CoinProps) {
       to: async (next) => {
         api.start({
           rotateX: nextRotation,
-          config: { mass: 1, tension: 120, friction: 20 },
+          config: { duration: 1550, easing: (t: number) => 1 - (1 - t) * (1 - t) * (1 - t) },
           delay: delay * 1000,
         });
 
-        await next({ y: -160, scale: 1.2, config: { mass: 1, tension: 180, friction: 25 }, delay: delay * 1000 });
-        await next({ y: 0, scale: 1, config: { mass: 1, tension: 300, friction: 20 } });
+        await next({
+          y: -160,
+          scale: 1.2,
+          config: { duration: 520, easing: (t: number) => 1 - Math.pow(1 - t, 3) },
+          delay: delay * 1000,
+        });
+        await next({
+          y: 0,
+          scale: 1,
+          config: { duration: 420, easing: (t: number) => t * t * t },
+        });
         await next({ y: -30, config: { mass: 1, tension: 400, friction: 15 } });
         await next({ y: 0, config: { mass: 1, tension: 500, friction: 20 } });
         await next({ y: -10, config: { mass: 1, tension: 600, friction: 15 } });
@@ -112,12 +124,31 @@ export function Coin({ value, tossRound, delay = 0 }: CoinProps) {
     fontWeight: 900,
   };
 
+  const edgeStyle = {
+    background: `
+      conic-gradient(
+        from 0deg,
+        rgba(96, 72, 26, 0.94) 0deg,
+        rgba(146, 116, 51, 0.96) 42deg,
+        rgba(88, 65, 22, 0.92) 88deg,
+        rgba(167, 136, 67, 0.96) 138deg,
+        rgba(78, 57, 20, 0.9) 205deg,
+        rgba(154, 124, 57, 0.95) 262deg,
+        rgba(98, 74, 28, 0.94) 320deg,
+        rgba(96, 72, 26, 0.94) 360deg
+      )
+    `,
+    boxShadow: `
+      inset 0 1px 2px rgba(255, 233, 177, 0.22),
+      inset 0 -2px 4px rgba(45, 31, 8, 0.52)
+    `,
+    border: `1px solid ${brassShadow}`,
+  };
+
   const renderFace = (isFront: boolean) => (
     <div 
-      className="absolute w-full h-full backface-hidden rounded-full"
+      className="absolute w-full h-full rounded-full"
       style={{ 
-        backfaceVisibility: "hidden",
-        transform: isFront ? "none" : "rotateX(180deg)",
         filter: "drop-shadow(0px 8px 12px rgba(0,0,0,0.5))",
         background: `radial-gradient(circle at 30% 30%, ${brassLight} 0%, ${brassBase} 40%, ${brassDark} 100%)`,
         ...coinMaskStyle
@@ -138,8 +169,13 @@ export function Coin({ value, tossRound, delay = 0 }: CoinProps) {
         className="absolute pointer-events-none"
         style={{
           top: '34%', bottom: '34%', left: '34%', right: '34%',
-          background: `linear-gradient(135deg, ${brassLight} 0%, ${brassBase} 50%, ${brassDark} 100%)`,
-          boxShadow: `0 0 3px rgba(0,0,0,0.7), inset -1px -1px 2px rgba(255,255,255,0.5), inset 1px 1px 2px rgba(0,0,0,0.6)`,
+          background: "transparent",
+          border: `2px solid ${brassBase}`,
+          boxShadow: `
+            0 0 3px rgba(0,0,0,0.7),
+            inset -1px -1px 2px rgba(255,255,255,0.5),
+            inset 1px 1px 2px rgba(0,0,0,0.6)
+          `,
         }}
       />
 
@@ -167,19 +203,89 @@ export function Coin({ value, tossRound, delay = 0 }: CoinProps) {
     </div>
   );
 
+  const renderEdgeLayers = () =>
+    Array.from({ length: coinThickness }, (_, index) => {
+      const layerDepth = faceOffset - (index + 1);
+      const distanceFromCenter = Math.abs(layerDepth);
+      const layerBrightness = 0.78 + (1 - distanceFromCenter / faceOffset) * 0.18;
+
+      return (
+        <div
+          key={`edge-${index}`}
+          className="absolute inset-0 rounded-full pointer-events-none"
+          style={{
+            transform: `translateZ(${layerDepth}px)`,
+            filter: `saturate(0.88) brightness(${layerBrightness})`,
+            ...coinMaskStyle,
+            ...edgeStyle,
+          }}
+        />
+      );
+    });
+
+  const idleSpinStyle = tossRound === 0
+    ? {
+        animation: `coin-idle-axis-spin ${7 + delay * 1.2}s linear infinite`,
+        animationDelay: `${delay * -0.8}s`,
+        transformStyle: "preserve-3d" as const,
+      }
+    : undefined;
+
   return (
     <div className="relative w-20 h-20 sm:w-24 sm:h-24 perspective-1000">
       <animated.div
-        className="w-full h-full relative preserve-3d"
-        style={{ 
-          transformStyle: "preserve-3d",
-          transform: y.to(yVal => `translateY(${yVal}px)`)
-            .to(t => `${t} scale(${scale.get()}) rotateX(${rotateX.get()}deg)`),
+        className="absolute left-1/2 top-[88%] -z-10 rounded-full"
+        style={{
+          width: "78%",
+          height: "16%",
+          background: "radial-gradient(circle, rgba(28, 18, 6, 0.38) 0%, rgba(28, 18, 6, 0.18) 45%, rgba(28, 18, 6, 0.02) 100%)",
+          transform: y.to((yVal) => {
+            const lift = Math.max(0, -yVal);
+            const scaleX = Math.max(0.62, 1 - lift / 420);
+            const scaleY = Math.max(0.54, 1 - lift / 520);
+            return `translateX(-50%) scale(${scaleX}, ${scaleY})`;
+          }),
+          opacity: y.to((yVal) => {
+            const lift = Math.max(0, -yVal);
+            return Math.max(0.14, 0.34 - lift / 700);
+          }),
+          filter: y.to((yVal) => {
+            const lift = Math.max(0, -yVal);
+            const blur = 2 + lift / 18;
+            return `blur(${blur}px)`;
+          }),
         }}
-      >
-        {renderFace(true)}
-        {renderFace(false)}
-      </animated.div>
+      />
+      <div className="w-full h-full preserve-3d" style={idleSpinStyle}>
+        <animated.div
+          className="w-full h-full relative preserve-3d"
+          style={{ 
+            transformStyle: "preserve-3d",
+            transform: y.to(yVal => `translateY(${yVal}px)`)
+              .to(t => `${t} scale(${scale.get()}) rotateX(${rotateX.get()}deg)`),
+          }}
+        >
+          {renderEdgeLayers()}
+          <div
+            className="absolute inset-0 preserve-3d"
+            style={{
+              transform: `translateZ(${faceOffset}px)`,
+              backfaceVisibility: "hidden",
+            }}
+          >
+            {renderFace(true)}
+          </div>
+          <div
+            className="absolute inset-0 preserve-3d"
+            style={{
+              transform: `translateZ(-${faceOffset}px) rotateY(180deg)`,
+              backfaceVisibility: "hidden",
+            }}
+          >
+            {renderFace(false)}
+          </div>
+        </animated.div>
+      </div>
     </div>
   );
 }

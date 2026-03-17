@@ -4,10 +4,14 @@ import { buildInterpretationPrompt } from "../lib/divination";
 interface InterpretOptions {
   onChunk?: (chunk: string, fullText: string) => void;
   castedAt?: string | null;
+  stage?: "basic" | "deep" | "technical";
 }
 
 export async function interpretHexagram(question: string, lines: LineValue[], options: InterpretOptions = {}) {
-  const prompt = buildInterpretationPrompt(question, lines, { castedAt: options.castedAt });
+  const prompt = buildInterpretationPrompt(question, lines, {
+    castedAt: options.castedAt,
+    stage: options.stage ?? "basic",
+  });
 
   try {
     const response = await fetch("/api/interpret", {
