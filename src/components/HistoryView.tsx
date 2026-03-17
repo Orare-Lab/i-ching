@@ -1,17 +1,19 @@
 import { useState } from "react";
 import Markdown from "react-markdown";
 import { ChevronDown, ChevronUp, Trash2 } from "lucide-react";
-import { DivinationSummary } from "../types";
+import { DivinationOutcomeTag, DivinationSummary, DivinationTopic } from "../types";
 import { motion, AnimatePresence } from "motion/react";
 import { parseInterpretation } from "../lib/interpretation";
+import { OUTCOME_OPTIONS, TOPIC_OPTIONS } from "../lib/personalArchive";
 
 interface HistoryViewProps {
   history: DivinationSummary[];
   onDelete: (id: string) => void;
   loadDetail: (id: string) => string | null;
+  onUpdateRecord: (id: string, patch: { topic?: DivinationTopic; outcomeTag?: DivinationOutcomeTag; outcomeNote?: string }) => void;
 }
 
-export function HistoryView({ history, onDelete, loadDetail }: HistoryViewProps) {
+export function HistoryView({ history, onDelete, loadDetail, onUpdateRecord }: HistoryViewProps) {
   const [expandedId, setExpandedId] = useState<string | null>(null);
 
   if (history.length === 0) {
@@ -84,6 +86,46 @@ export function HistoryView({ history, onDelete, loadDetail }: HistoryViewProps)
                           第{i+1}爻: {line}
                         </div>
                       ))}
+                    </div>
+                    <div className="mb-6 grid gap-4 rounded-2xl border border-stone-200 bg-stone-50/80 p-4 sm:grid-cols-2">
+                      <label className="space-y-2">
+                        <div className="text-xs tracking-[0.2em] text-stone-500">问题主题</div>
+                        <select
+                          value={record.topic}
+                          onChange={(event) => onUpdateRecord(record.id, { topic: event.target.value as DivinationTopic })}
+                          className="w-full rounded-xl border border-stone-200 bg-white px-3 py-2 text-sm text-stone-700 outline-none"
+                        >
+                          {TOPIC_OPTIONS.map((option) => (
+                            <option key={option} value={option}>
+                              {option}
+                            </option>
+                          ))}
+                        </select>
+                      </label>
+                      <label className="space-y-2">
+                        <div className="text-xs tracking-[0.2em] text-stone-500">后续结果</div>
+                        <select
+                          value={record.outcomeTag}
+                          onChange={(event) => onUpdateRecord(record.id, { outcomeTag: event.target.value as DivinationOutcomeTag })}
+                          className="w-full rounded-xl border border-stone-200 bg-white px-3 py-2 text-sm text-stone-700 outline-none"
+                        >
+                          {OUTCOME_OPTIONS.map((option) => (
+                            <option key={option} value={option}>
+                              {option}
+                            </option>
+                          ))}
+                        </select>
+                      </label>
+                      <label className="space-y-2 sm:col-span-2">
+                        <div className="text-xs tracking-[0.2em] text-stone-500">后续备注</div>
+                        <textarea
+                          value={record.outcomeNote}
+                          onChange={(event) => onUpdateRecord(record.id, { outcomeNote: event.target.value })}
+                          rows={3}
+                          placeholder="例如：两周后拿到 offer，过程比预期更慢。"
+                          className="w-full rounded-xl border border-stone-200 bg-white px-3 py-2 text-sm leading-6 text-stone-700 outline-none"
+                        />
+                      </label>
                     </div>
                     <p className="mb-4 text-sm text-stone-500">{record.excerpt}</p>
                     <div className="markdown-body font-serif leading-relaxed text-stone-800 prose prose-stone prose-lg max-w-none prose-headings:font-serif prose-headings:font-normal prose-a:text-[#8b2b22] prose-strong:text-[#6b1e16] prose-strong:font-normal">

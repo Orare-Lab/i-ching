@@ -8,11 +8,13 @@ import { LineValue, createHexagramLineDetail, parseHexagram } from "./data/hexag
 import { getGuaci, getYaoci } from "./data/ichingTexts";
 import { interpretHexagram } from "./services/aiService";
 import { generateLine } from "./lib/divination";
-import { deleteHistoryRecord, loadHistoryDetail, loadHistorySummaries, saveHistoryRecord } from "./lib/history";
+import { deleteHistoryRecord, loadHistoryDetail, loadHistorySummaries, saveHistoryRecord, updateHistoryRecord } from "./lib/history";
 import { parseInterpretation } from "./lib/interpretation";
+import { buildHexagramSignature, buildPersonalHexagramInsights, formatHistoryDate, inferTopicFromQuestion, OUTCOME_OPTIONS, TOPIC_OPTIONS } from "./lib/personalArchive";
 import { cn } from "./lib/utils";
-import { DivinationRecord, DivinationSummary } from "./types";
+import { DivinationOutcomeTag, DivinationRecord, DivinationSummary, DivinationTopic } from "./types";
 import { HistoryView } from "./components/HistoryView";
+import { HistoryStatsBoard } from "./components/HistoryStatsBoard";
 import { getDayStemForDate } from "./lib/hexagramAnnotations";
 
 const TOSS_DURATION_MS = 1500;
@@ -397,6 +399,12 @@ export default function App() {
           originalName: hexData.originalName,
           changedName: hexData.changedName,
           movingLines: hexData.movingLines,
+          originalBinary: hexData.originalBinary,
+          changedBinary: hexData.changedBinary,
+          signature: buildHexagramSignature(hexData.originalBinary, hexData.changedBinary, hexData.movingLines),
+          topic: inferTopicFromQuestion(question || "无特定问题，求测近期运势"),
+          outcomeTag: "待观察",
+          outcomeNote: "",
           interpretation: buildStoredInterpretation(result),
         };
 
@@ -412,6 +420,12 @@ export default function App() {
           originalName: hexData.originalName,
           changedName: hexData.changedName,
           movingLines: hexData.movingLines,
+          originalBinary: hexData.originalBinary,
+          changedBinary: hexData.changedBinary,
+          signature: buildHexagramSignature(hexData.originalBinary, hexData.changedBinary, hexData.movingLines),
+          topic: currentHistoryRecord?.topic || inferTopicFromQuestion(question || "无特定问题，求测近期运势"),
+          outcomeTag: currentHistoryRecord?.outcomeTag || "待观察",
+          outcomeNote: currentHistoryRecord?.outcomeNote || "",
           interpretation: fullInterpretation,
         };
 
@@ -430,6 +444,12 @@ export default function App() {
           originalName: hexData.originalName,
           changedName: hexData.changedName,
           movingLines: hexData.movingLines,
+          originalBinary: hexData.originalBinary,
+          changedBinary: hexData.changedBinary,
+          signature: buildHexagramSignature(hexData.originalBinary, hexData.changedBinary, hexData.movingLines),
+          topic: currentHistoryRecord?.topic || inferTopicFromQuestion(question || "无特定问题，求测近期运势"),
+          outcomeTag: currentHistoryRecord?.outcomeTag || "待观察",
+          outcomeNote: currentHistoryRecord?.outcomeNote || "",
           interpretation: fullInterpretation,
         };
 
@@ -502,6 +522,13 @@ export default function App() {
     setHistory(deleteHistoryRecord(id));
   };
 
+  const handleUpdateHistoryRecord = (
+    id: string,
+    patch: { topic?: DivinationTopic; outcomeTag?: DivinationOutcomeTag; outcomeNote?: string },
+  ) => {
+    setHistory(updateHistoryRecord(id, patch));
+  };
+
   const persistPage = (page: "cast" | "learn") => {
     try {
       window.localStorage.setItem(PAGE_STORAGE_KEY, page);
@@ -522,6 +549,13 @@ export default function App() {
   const parsedBasicInterpretation = parseInterpretation(basicInterpretation || "");
   const parsedDeepInterpretation = parseInterpretation(deepInterpretation || "");
   const parsedTechnicalInterpretation = parseInterpretation(technicalInterpretation || "");
+  const currentHistoryRecord = currentInterpretationRecordId
+    ? history.find((item) => item.id === currentInterpretationRecordId) || null
+    : null;
+  const personalHexagramInsights =
+    hexData && basicInterpretation !== null
+      ? buildPersonalHexagramInsights(history, currentInterpretationRecordId, hexData)
+      : null;
   const basicsSection = (
     <section className="glass-panel rounded-3xl p-5 sm:p-6 lg:p-8 max-w-5xl mx-auto overflow-hidden relative">
       <div className="absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-[#8b2b22]/40 to-transparent" />
@@ -1146,7 +1180,15 @@ export default function App() {
       <main className="relative z-10 max-w-6xl mx-auto p-4 sm:p-6 lg:p-8 space-y-4 sm:space-y-6 pb-16">
         
         {showHistory ? (
-          <HistoryView history={history} onDelete={handleDeleteHistory} loadDetail={loadHistoryDetail} />
+          <div className="grid gap-6 lg:grid-cols-[22rem_minmax(0,1fr)] lg:items-start">
+            <HistoryStatsBoard history={history} />
+            <HistoryView
+              history={history}
+              onDelete={handleDeleteHistory}
+              loadDetail={loadHistoryDetail}
+              onUpdateRecord={handleUpdateHistoryRecord}
+            />
+          </div>
         ) : (
           <>
             <div className="flex sm:hidden items-center justify-center rounded-full border border-stone-200 bg-white/70 p-1 max-w-5xl mx-auto">
@@ -1592,6 +1634,154 @@ export default function App() {
                             </div>
                           </details>
                         )}
+                      </div>
+                    )}
+
+                    {currentInterpretationRecordId && (
+                      <div className="mt-6 grid gap-4 rounded-2xl border border-stone-200 bg-stone-50/80 p-4 sm:grid-cols-2">
+                        <label className="space-y-2">
+                          <div className="text-xs tracking-[0.2em] text-stone-500">给这次问题标个主题</div>
+                          <select
+                            value={currentHistoryRecord?.topic || "未分类"}
+                            onChange={(event) =>
+                              handleUpdateHistoryRecord(currentInterpretationRecordId, {
+                                topic: event.target.value as DivinationTopic,
+                              })
+                            }
+                            className="w-full rounded-xl border border-stone-200 bg-white px-3 py-2 text-sm text-stone-700 outline-none"
+                          >
+                            {TOPIC_OPTIONS.map((option) => (
+                              <option key={option} value={option}>
+                                {option}
+                              </option>
+                            ))}
+                          </select>
+                        </label>
+                        <label className="space-y-2">
+                          <div className="text-xs tracking-[0.2em] text-stone-500">后续结果先记一下</div>
+                          <select
+                            value={currentHistoryRecord?.outcomeTag || "待观察"}
+                            onChange={(event) =>
+                              handleUpdateHistoryRecord(currentInterpretationRecordId, {
+                                outcomeTag: event.target.value as DivinationOutcomeTag,
+                              })
+                            }
+                            className="w-full rounded-xl border border-stone-200 bg-white px-3 py-2 text-sm text-stone-700 outline-none"
+                          >
+                            {OUTCOME_OPTIONS.map((option) => (
+                              <option key={option} value={option}>
+                                {option}
+                              </option>
+                            ))}
+                          </select>
+                        </label>
+                        <label className="space-y-2 sm:col-span-2">
+                          <div className="text-xs tracking-[0.2em] text-stone-500">后续备注</div>
+                          <textarea
+                            value={currentHistoryRecord?.outcomeNote || ""}
+                            onChange={(event) =>
+                              handleUpdateHistoryRecord(currentInterpretationRecordId, {
+                                outcomeNote: event.target.value,
+                              })
+                            }
+                            rows={3}
+                            placeholder="例如：一个月后项目推进了，但比预期慢。"
+                            className="w-full rounded-xl border border-stone-200 bg-white px-3 py-2 text-sm leading-6 text-stone-700 outline-none"
+                          />
+                        </label>
+                      </div>
+                    )}
+
+                    {personalHexagramInsights && (
+                      <div className="mt-6 rounded-2xl border border-[#8b2b22]/15 bg-[linear-gradient(180deg,rgba(139,43,34,0.05),rgba(255,255,255,0.9))] px-5 py-5">
+                        <div className="flex flex-wrap items-center justify-between gap-3">
+                          <div>
+                            <div className="text-sm font-serif tracking-[0.22em] text-[#8b2b22]">同卦参考</div>
+                            <p className="mt-2 text-sm leading-7 text-stone-600">只统计你自己的历史记录，不含其他用户数据。</p>
+                          </div>
+                          <div className="rounded-full border border-[#8b2b22]/15 bg-white px-3 py-1 text-xs text-[#8b2b22]">
+                            {hexData?.originalName}
+                            {hexData && hexData.movingLines.length > 0 ? ` → ${hexData.changedName}` : "（无变卦）"}
+                          </div>
+                        </div>
+
+                        <div className="mt-5 grid gap-3 sm:grid-cols-3">
+                          <div className="rounded-2xl border border-stone-200 bg-white/80 px-4 py-4">
+                            <div className="text-[11px] tracking-[0.2em] text-stone-400">同本卦</div>
+                            <div className="mt-2 text-2xl font-serif text-stone-900">{personalHexagramInsights.sameOriginal.length}</div>
+                            <div className="mt-1 text-xs text-stone-500">本卦相同</div>
+                          </div>
+                          <div className="rounded-2xl border border-stone-200 bg-white/80 px-4 py-4">
+                            <div className="text-[11px] tracking-[0.2em] text-stone-400">同本卦 + 变卦</div>
+                            <div className="mt-2 text-2xl font-serif text-stone-900">{personalHexagramInsights.samePair.length}</div>
+                            <div className="mt-1 text-xs text-stone-500">走势结构相同</div>
+                          </div>
+                          <div className="rounded-2xl border border-stone-200 bg-white/80 px-4 py-4">
+                            <div className="text-[11px] tracking-[0.2em] text-stone-400">完全同局</div>
+                            <div className="mt-2 text-2xl font-serif text-stone-900">{personalHexagramInsights.sameSignature.length}</div>
+                            <div className="mt-1 text-xs text-stone-500">动爻位置也相同</div>
+                          </div>
+                        </div>
+
+                        <div className="mt-5 grid gap-4 lg:grid-cols-[1.1fr_0.9fr]">
+                          <div className="rounded-2xl border border-stone-200 bg-white/80 px-4 py-4">
+                            <div className="text-sm font-serif text-stone-800">最近相似记录</div>
+                            {personalHexagramInsights.recentCases.length > 0 ? (
+                              <div className="mt-3 space-y-3">
+                                {personalHexagramInsights.recentCases.map((item) => (
+                                  <div key={item.id} className="rounded-xl border border-stone-200 bg-stone-50/60 px-3 py-3">
+                                    <div className="flex flex-wrap items-center gap-2 text-xs text-stone-500">
+                                      <span>{formatHistoryDate(item.date)}</span>
+                                      <span className="h-1 w-1 rounded-full bg-stone-300" />
+                                      <span>{item.topic}</span>
+                                      <span className="h-1 w-1 rounded-full bg-stone-300" />
+                                      <span>{item.outcomeTag}</span>
+                                    </div>
+                                    <div className="mt-2 text-sm font-serif text-stone-800">{item.question}</div>
+                                    {item.outcomeNote && (
+                                      <div className="mt-2 text-xs leading-6 text-stone-500">{item.outcomeNote}</div>
+                                    )}
+                                  </div>
+                                ))}
+                              </div>
+                            ) : (
+                              <p className="mt-3 text-sm text-stone-500">你还没有更早的同类记录。之后多回填几次，会慢慢出现自己的样本。</p>
+                            )}
+                          </div>
+
+                          <div className="space-y-4">
+                            <div className="rounded-2xl border border-stone-200 bg-white/80 px-4 py-4">
+                              <div className="text-sm font-serif text-stone-800">主题分布</div>
+                              {personalHexagramInsights.topicBreakdown.length > 0 ? (
+                                <div className="mt-3 space-y-2">
+                                  {personalHexagramInsights.topicBreakdown.map(([topic, count]) => (
+                                    <div key={topic} className="flex items-center justify-between rounded-xl bg-stone-50/70 px-3 py-2 text-sm text-stone-700">
+                                      <span>{topic}</span>
+                                      <span>{count} 次</span>
+                                    </div>
+                                  ))}
+                                </div>
+                              ) : (
+                                <p className="mt-3 text-sm text-stone-500">先给历史问题补主题，这里才会开始成形。</p>
+                              )}
+                            </div>
+                            <div className="rounded-2xl border border-stone-200 bg-white/80 px-4 py-4">
+                              <div className="text-sm font-serif text-stone-800">结果回看</div>
+                              {personalHexagramInsights.outcomeBreakdown.length > 0 ? (
+                                <div className="mt-3 space-y-2">
+                                  {personalHexagramInsights.outcomeBreakdown.map(([outcome, count]) => (
+                                    <div key={outcome} className="flex items-center justify-between rounded-xl bg-stone-50/70 px-3 py-2 text-sm text-stone-700">
+                                      <span>{outcome}</span>
+                                      <span>{count} 次</span>
+                                    </div>
+                                  ))}
+                                </div>
+                              ) : (
+                                <p className="mt-3 text-sm text-stone-500">回填“应验 / 未应验”后，这里会形成你自己的卦象反馈统计。</p>
+                              )}
+                            </div>
+                          </div>
+                        </div>
                       </div>
                     )}
                   </motion.section>
