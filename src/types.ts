@@ -33,3 +33,34 @@ export interface DivinationSummary {
 export interface DivinationRecord extends Omit<DivinationSummary, "excerpt"> {
   interpretation: string;
 }
+
+export type BaziGender = "male" | "female";
+export type BaziCalendarType = "solar" | "lunar";
+
+export interface BaziPillar {
+  stem: string;
+  branch: string;
+  label: string;
+  stemElement: string;
+  branchElement: string;
+  hiddenStems: string[];
+  animal: string;
+}
+
+export interface BaziChart {
+  name: string;
+  gender: BaziGender;
+  calendarType: BaziCalendarType;
+  solarDateText: string;
+  lunarDateText: string;
+  zodiac: string;
+  dayMaster: string;
+  pillars: {
+    year: BaziPillar;
+    month: BaziPillar;
+    day: BaziPillar;
+    hour: BaziPillar;
+  };
+  elementCounts: Record<string, number>;
+  warnings: string[];
+}

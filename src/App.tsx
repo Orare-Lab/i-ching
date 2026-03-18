@@ -11,16 +11,41 @@ import { generateLine } from "./lib/divination";
 import { deleteHistoryRecord, loadHistoryDetail, loadHistorySummaries, saveHistoryRecord, updateHistoryRecord } from "./lib/history";
 import { parseInterpretation } from "./lib/interpretation";
 import { buildHexagramSignature, buildPersonalHexagramInsights, formatHistoryDate, inferTopicFromQuestion, OUTCOME_OPTIONS, TOPIC_OPTIONS } from "./lib/personalArchive";
+import { buildBaziChart } from "./lib/bazi";
 import { cn } from "./lib/utils";
-import { DivinationOutcomeTag, DivinationRecord, DivinationSummary, DivinationTopic } from "./types";
+import { BaziCalendarType, BaziChart, BaziGender, DivinationOutcomeTag, DivinationRecord, DivinationSummary, DivinationTopic } from "./types";
 import { HistoryView } from "./components/HistoryView";
 import { HistoryStatsBoard } from "./components/HistoryStatsBoard";
+import { BaziChartView } from "./components/BaziChartView";
 import { getDayStemForDate } from "./lib/hexagramAnnotations";
 
 const TOSS_DURATION_MS = 1500;
 const PAGE_STORAGE_KEY = "liuyao-page";
+const PRACTICE_STORAGE_KEY = "iching-practice";
 const BAGUA_ROTATION_DURATION_S = 36;
 const TAIJI_ROTATION_DURATION_S = 24;
+const WHEEL_ITEM_HEIGHT = 40;
+const WHEEL_VIEWPORT_HEIGHT = WHEEL_ITEM_HEIGHT * 4;
+const WHEEL_SPACER_HEIGHT = (WHEEL_VIEWPORT_HEIGHT - WHEEL_ITEM_HEIGHT) / 2;
+const DEFAULT_SOLAR_DATE = formatDatePartsToIso(new Date().getFullYear(), new Date().getMonth() + 1, new Date().getDate());
+const SOLAR_YEAR_OPTIONS = Array.from({ length: 101 }, (_, index) => 1926 + index);
+const LUNAR_YEAR_OPTIONS = Array.from({ length: 101 }, (_, index) => 1926 + index);
+const MONTH_OPTIONS = Array.from({ length: 12 }, (_, index) => index + 1);
+const DAY_OPTIONS = Array.from({ length: 31 }, (_, index) => index + 1);
+const TIME_SLOT_OPTIONS = [
+  { label: "子时", hour: 23, range: "23:00-00:59" },
+  { label: "丑时", hour: 1, range: "01:00-02:59" },
+  { label: "寅时", hour: 3, range: "03:00-04:59" },
+  { label: "卯时", hour: 5, range: "05:00-06:59" },
+  { label: "辰时", hour: 7, range: "07:00-08:59" },
+  { label: "巳时", hour: 9, range: "09:00-10:59" },
+  { label: "午时", hour: 11, range: "11:00-12:59" },
+  { label: "未时", hour: 13, range: "13:00-14:59" },
+  { label: "申时", hour: 15, range: "15:00-16:59" },
+  { label: "酉时", hour: 17, range: "17:00-18:59" },
+  { label: "戌时", hour: 19, range: "19:00-20:59" },
+  { label: "亥时", hour: 21, range: "21:00-22:59" },
+] as const;
 const basics = [
   {
     key: "lines",
@@ -164,6 +189,153 @@ function IntroTrigram({ binary }: { binary: string }) {
   );
 }
 
+function HeaderTaijiIcon() {
+  return (
+    <motion.div
+      animate={{ rotate: 360 }}
+      transition={{ duration: 24, ease: "linear", repeat: Infinity }}
+      className="relative h-7 w-7 overflow-hidden rounded-full border border-[#8b2b22]/35 bg-stone-900"
+    >
+      <div className="absolute inset-y-0 right-0 w-1/2 bg-[#f4f1ea]" />
+      <div className="absolute left-1/2 top-0 h-1/2 w-1/2 -translate-x-1/2 rounded-full bg-stone-900" />
+      <div className="absolute left-1/2 bottom-0 h-1/2 w-1/2 -translate-x-1/2 rounded-full bg-[#f4f1ea]" />
+      <div className="absolute left-1/2 top-1/4 h-2 w-2 -translate-x-1/2 -translate-y-1/2 rounded-full bg-[#f4f1ea]" />
+      <div className="absolute left-1/2 top-3/4 h-2 w-2 -translate-x-1/2 -translate-y-1/2 rounded-full bg-stone-900" />
+    </motion.div>
+  );
+}
+
+function WheelColumn({
+  label,
+  value,
+  options,
+  onChange,
+  formatOption,
+}: {
+  label: string;
+  value: number;
+  options: number[];
+  onChange: (value: number) => void;
+  formatOption?: (value: number) => string;
+}) {
+  const scrollRef = useRef<HTMLDivElement | null>(null);
+  const snapTimerRef = useRef<number | null>(null);
+  const isInternalScroll = useRef(false);
+
+  useEffect(() => {
+    if (isInternalScroll.current) {
+      isInternalScroll.current = false;
+      return;
+    }
+
+    const timer = window.setTimeout(() => {
+      const container = scrollRef.current;
+      if (!container) return;
+
+      const index = options.indexOf(value);
+      if (index === -1) return;
+
+      container.scrollTo({
+        top: index * WHEEL_ITEM_HEIGHT,
+        behavior: "smooth",
+      });
+    }, 10);
+
+    return () => window.clearTimeout(timer);
+  }, [options, value]);
+
+  useEffect(() => {
+    return () => {
+      if (snapTimerRef.current !== null) {
+        window.clearTimeout(snapTimerRef.current);
+      }
+    };
+  }, []);
+
+  const snapToNearest = () => {
+    const container = scrollRef.current;
+    if (!container) return;
+
+    const nextIndex = Math.max(0, Math.min(options.length - 1, Math.round(container.scrollTop / WHEEL_ITEM_HEIGHT)));
+    const nextValue = options[nextIndex];
+    if (nextValue === undefined || nextValue === value) return;
+
+    isInternalScroll.current = true;
+    onChange(nextValue);
+  };
+
+  const handleScroll = () => {
+    if (snapTimerRef.current !== null) {
+      window.clearTimeout(snapTimerRef.current);
+    }
+
+    snapTimerRef.current = window.setTimeout(() => {
+      snapToNearest();
+    }, 100);
+  };
+
+  return (
+    <div className="relative rounded-2xl border border-stone-200 bg-white/80 px-2 py-3">
+      <div className="mb-2 text-center text-[11px] tracking-[0.2em] text-stone-400">{label}</div>
+      <div className="relative">
+        <div className="pointer-events-none absolute inset-x-0 top-1/2 h-10 -translate-y-1/2 rounded-xl border border-[#8b2b22]/15 bg-[#8b2b22]/6" />
+        <div
+          ref={scrollRef}
+          onScroll={handleScroll}
+          className="snap-y snap-mandatory overflow-y-auto scroll-smooth text-center [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
+          style={{
+            height: `${WHEEL_VIEWPORT_HEIGHT}px`,
+            scrollPaddingBlock: `${WHEEL_SPACER_HEIGHT}px`,
+          }}
+        >
+          <div style={{ height: `${WHEEL_SPACER_HEIGHT}px` }} />
+          {options.map((option) => {
+            return (
+              <button
+                key={`${label}-${option}`}
+                type="button"
+                onClick={() => {
+                  isInternalScroll.current = true;
+                  onChange(option);
+                }}
+                className={cn(
+                  "block h-10 w-full snap-center rounded-xl font-serif text-base transition-all",
+                  option === value ? "text-[#8b2b22]" : "text-stone-500 hover:text-stone-900",
+                )}
+              >
+                {formatOption ? formatOption(option) : option}
+              </button>
+            );
+          })}
+          <div style={{ height: `${WHEEL_SPACER_HEIGHT}px` }} />
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function TimeWheelPicker({
+  hour,
+  onHourChange,
+}: {
+  hour: number;
+  onHourChange: (value: number) => void;
+}) {
+  const slotHours = TIME_SLOT_OPTIONS.map((option) => option.hour);
+  return (
+    <WheelColumn
+      label="时段"
+      value={hour}
+      options={slotHours}
+      onChange={onHourChange}
+      formatOption={(value) => {
+        const matched = TIME_SLOT_OPTIONS.find((option) => option.hour === value);
+        return matched ? matched.label : `${value}时`;
+      }}
+    />
+  );
+}
+
 function EdgeTrigram({
   name,
   binary,
@@ -196,6 +368,46 @@ function EdgeTrigram({
   );
 }
 
+function formatDatePartsToIso(year: number, month: number, day: number) {
+  return `${year}-${String(month).padStart(2, "0")}-${String(day).padStart(2, "0")}`;
+}
+
+function parseSolarDate(value: string) {
+  const matched = value.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+  if (!matched) {
+    return {
+      year: new Date().getFullYear(),
+      month: new Date().getMonth() + 1,
+      day: new Date().getDate(),
+    };
+  }
+
+  return {
+    year: Number(matched[1]),
+    month: Number(matched[2]),
+    day: Number(matched[3]),
+  };
+}
+
+function parseTimeParts(value: string) {
+  const matched = value.match(/^(\d{2}):(\d{2})$/);
+  if (!matched) {
+    return { hour: 11 };
+  }
+
+  return {
+    hour: Number(matched[1]),
+  };
+}
+
+function formatTimeParts(hour: number) {
+  return `${String(hour).padStart(2, "0")}:00`;
+}
+
+function getSolarDayCount(year: number, month: number) {
+  return new Date(year, month, 0).getDate();
+}
+
 export default function App() {
   const [authStatus, setAuthStatus] = useState<"loading" | "authenticated" | "unauthenticated">("loading");
   const [inviteCode, setInviteCode] = useState("");
@@ -215,6 +427,19 @@ export default function App() {
   const [history, setHistory] = useState<DivinationSummary[]>(() => loadHistorySummaries());
   const [castingDate, setCastingDate] = useState<string | null>(null);
   const [activePage, setActivePage] = useState<"cast" | "learn">("cast");
+  const [activePractice, setActivePractice] = useState<"liuyao" | "bazi">("liuyao");
+  const [activeGuide, setActiveGuide] = useState<"liuyao" | "bazi">("liuyao");
+  const [baziName, setBaziName] = useState("");
+  const [baziGender, setBaziGender] = useState<BaziGender>("male");
+  const [baziCalendarType, setBaziCalendarType] = useState<BaziCalendarType>("solar");
+  const [baziSolarDate, setBaziSolarDate] = useState(DEFAULT_SOLAR_DATE);
+  const [baziTime, setBaziTime] = useState("12:00");
+  const [baziLunarYear, setBaziLunarYear] = useState(String(new Date().getFullYear()));
+  const [baziLunarMonth, setBaziLunarMonth] = useState("1");
+  const [baziLunarDay, setBaziLunarDay] = useState("1");
+  const [baziLeapMonth, setBaziLeapMonth] = useState(false);
+  const [baziChart, setBaziChart] = useState<BaziChart | null>(null);
+  const [baziError, setBaziError] = useState<string | null>(null);
   const tossLockRef = useRef(false);
   const autoTossingRef = useRef(false);
 
@@ -269,10 +494,32 @@ export default function App() {
       if (savedPage === "cast" || savedPage === "learn") {
         setActivePage(savedPage);
       }
+
+      const savedPractice = window.localStorage.getItem(PRACTICE_STORAGE_KEY);
+      if (savedPractice === "liuyao" || savedPractice === "bazi") {
+        setActivePractice(savedPractice);
+      }
     } catch {
       // Ignore storage read failures.
     }
   }, []);
+
+  useEffect(() => {
+    const { year, month, day } = parseSolarDate(baziSolarDate);
+    const maxDay = getSolarDayCount(year, month);
+    if (day > maxDay) {
+      setBaziSolarDate(formatDatePartsToIso(year, month, maxDay));
+    }
+  }, [baziSolarDate]);
+
+  useEffect(() => {
+    const day = Number(baziLunarDay);
+    if (day > 30) {
+      setBaziLunarDay("30");
+    } else if (day < 1) {
+      setBaziLunarDay("1");
+    }
+  }, [baziLunarDay]);
 
   const appendGeneratedLine = async () => {
     if (lines.length >= 6 || tossLockRef.current) return false;
@@ -340,6 +587,27 @@ export default function App() {
     setCurrentInterpretationRecordId(null);
     setQuestion("");
     setCastingDate(null);
+  };
+
+  const handleGenerateBazi = () => {
+    try {
+      const nextChart = buildBaziChart({
+        name: baziName || "未署名命主",
+        gender: baziGender,
+        calendarType: baziCalendarType,
+        solarDate: baziSolarDate,
+        solarTime: baziTime,
+        lunarYear: baziLunarYear ? Number(baziLunarYear) : undefined,
+        lunarMonth: baziLunarMonth ? Number(baziLunarMonth) : undefined,
+        lunarDay: baziLunarDay ? Number(baziLunarDay) : undefined,
+        lunarLeapMonth: baziLeapMonth,
+      });
+      setBaziChart(nextChart);
+      setBaziError(null);
+    } catch (error) {
+      setBaziChart(null);
+      setBaziError(error instanceof Error ? error.message : "排盘失败，请检查输入信息。");
+    }
   };
 
   const buildStoredInterpretation = (basic: string, deep?: string, technical?: string) => {
@@ -542,7 +810,24 @@ export default function App() {
     persistPage(page);
   };
 
+  const handleSelectPractice = (practice: "liuyao" | "bazi") => {
+    setActivePractice(practice);
+    try {
+      window.localStorage.setItem(PRACTICE_STORAGE_KEY, practice);
+    } catch {
+      // Ignore storage write failures.
+    }
+  };
+
   const computationDate = castingDate ? new Date(castingDate) : new Date();
+  const solarPickerValue = parseSolarDate(baziSolarDate);
+  const solarDayOptions = Array.from({ length: getSolarDayCount(solarPickerValue.year, solarPickerValue.month) }, (_, index) => index + 1);
+  const lunarPickerValue = {
+    year: Number(baziLunarYear) || LUNAR_YEAR_OPTIONS[0],
+    month: Number(baziLunarMonth) || 1,
+    day: Number(baziLunarDay) || 1,
+  };
+  const timePickerValue = parseTimeParts(baziTime);
   const hexData = lines.length === 6
     ? parseHexagram(lines, { dayStem: getDayStemForDate(computationDate) })
     : null;
@@ -556,6 +841,17 @@ export default function App() {
     hexData && basicInterpretation !== null
       ? buildPersonalHexagramInsights(history, currentInterpretationRecordId, hexData)
       : null;
+  const updateSolarPicker = (patch: Partial<typeof solarPickerValue>) => {
+    const nextYear = patch.year ?? solarPickerValue.year;
+    const nextMonth = patch.month ?? solarPickerValue.month;
+    const nextMaxDay = getSolarDayCount(nextYear, nextMonth);
+    const nextDay = Math.min(patch.day ?? solarPickerValue.day, nextMaxDay);
+    setBaziSolarDate(formatDatePartsToIso(nextYear, nextMonth, nextDay));
+  };
+  const updateTimePicker = (patch: Partial<typeof timePickerValue>) => {
+    const nextHour = patch.hour ?? timePickerValue.hour;
+    setBaziTime(formatTimeParts(nextHour));
+  };
   const basicsSection = (
     <section className="glass-panel rounded-3xl p-5 sm:p-6 lg:p-8 max-w-5xl mx-auto overflow-hidden relative">
       <div className="absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-[#8b2b22]/40 to-transparent" />
@@ -1058,6 +1354,92 @@ export default function App() {
     </section>
   );
 
+  const baziBasicsSection = (
+    <section className="glass-panel rounded-3xl p-5 sm:p-6 lg:p-8 max-w-5xl mx-auto overflow-hidden relative">
+      <div className="absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-[#8b2b22]/40 to-transparent" />
+      <div className="flex items-center gap-4 mb-6">
+        <div className="flex items-center gap-3">
+          <div className="w-10 h-10 rounded-full border border-[#8b2b22]/20 bg-[#8b2b22]/8 flex items-center justify-center text-[#8b2b22]">
+            <BookOpen className="w-5 h-5" />
+          </div>
+          <div>
+            <h2 className="text-lg sm:text-xl font-serif tracking-[0.2em] text-stone-900">八字入门</h2>
+            <p className="mt-1 text-sm text-stone-500 font-serif">先认四柱，再看日主、月份和五行分布。</p>
+          </div>
+        </div>
+      </div>
+
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        {[
+          {
+            title: "四柱是什么",
+            icon: Layers3,
+            body: "八字由年、月、日、时四柱组成，每柱各有一个天干和一个地支。",
+            points: ["年柱：家世/早年", "月柱：时令/环境", "日柱：自身/婚姻核心", "时柱：晚景/子女/想法"],
+          },
+          {
+            title: "先看日主",
+            icon: CircleDot,
+            body: "日柱天干叫日主，是看命盘强弱和喜忌的核心出发点。",
+            points: ["甲乙属木", "丙丁属火", "戊己属土", "庚辛属金", "壬癸属水"],
+          },
+          {
+            title: "为什么重月令",
+            icon: Waypoints,
+            body: "月支代表时令，决定日主处在什么季节，这会直接影响旺衰判断。",
+            points: ["春木旺", "夏火旺", "秋金旺", "冬水旺", "土随四季转换起调节作用"],
+          },
+          {
+            title: "五行怎么看",
+            icon: Stars,
+            body: "不能只看数量多少，还要看月份、透干、通根和生克关系。",
+            points: ["多不一定旺", "少不一定弱", "先看有没有根", "再看有没有帮扶或克制"],
+          },
+          {
+            title: "天干与地支",
+            icon: GitCompareArrows,
+            body: "天干偏外显，地支偏内在与环境，地支里还藏着藏干。",
+            points: ["天干：表层表现", "地支：内里结构", "藏干：支中所含之气"],
+          },
+          {
+            title: "排盘输入要点",
+            icon: Users,
+            body: "八字排盘最怕时间错。出生日期、时辰、历法和闰月信息要尽量准确。",
+            points: ["公历/农历不要混", "闰月要单独标明", "子时和节气边界要复核", "医院记录优先于记忆"],
+          },
+        ].map((item, index) => {
+          const Icon = item.icon;
+          return (
+            <motion.article
+              key={item.title}
+              initial={{ opacity: 0, y: 12 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: 0.08 * index }}
+              className="rounded-2xl border border-stone-200 bg-[linear-gradient(180deg,rgba(255,255,255,0.7),rgba(244,241,234,0.9))] p-5"
+            >
+              <div className="flex items-center gap-3 mb-4">
+                <div className="w-9 h-9 rounded-full bg-stone-900 text-[#fdfbf7] flex items-center justify-center">
+                  <Icon className="w-4 h-4" />
+                </div>
+                <h3 className="font-serif text-lg text-stone-900">{item.title}</h3>
+              </div>
+              <div className="rounded-2xl border border-stone-200 bg-[#f4f1ea]/90 px-4 py-4">
+                <p className="text-sm leading-7 text-stone-600">{item.body}</p>
+                <div className="mt-4 flex flex-wrap gap-2">
+                  {item.points.map((point) => (
+                    <span key={point} className="rounded-full border border-stone-200 bg-white/90 px-3 py-1 text-xs text-stone-600">
+                      {point}
+                    </span>
+                  ))}
+                </div>
+              </div>
+            </motion.article>
+          );
+        })}
+      </div>
+    </section>
+  );
+
   if (authStatus === "loading") {
     return (
       <div className="min-h-screen bg-[#f4f1ea] text-stone-800 flex items-center justify-center px-6">
@@ -1077,9 +1459,9 @@ export default function App() {
             <div className="absolute top-[-10%] right-[-5%] w-48 h-48 rounded-full bg-[#8b2b22]/10 blur-[100px] pointer-events-none" />
             <div className="max-w-xl">
               <p className="text-xs tracking-[0.45em] text-[#8b2b22] mb-4">INVITE ONLY</p>
-              <h1 className="text-3xl sm:text-4xl font-serif tracking-[0.2em] text-stone-900">六爻起卦</h1>
+              <h1 className="text-3xl sm:text-4xl font-serif tracking-[0.2em] text-stone-900">易学</h1>
               <p className="mt-4 text-sm sm:text-base leading-8 text-stone-600 font-serif">
-                当前站点已开启邀请码访问控制。输入有效邀请码后，才可进入起卦与解卦流程。
+                当前站点已开启邀请码访问控制。输入有效邀请码后，才可进入六爻起卦与八字排盘流程。
               </p>
 
               <form onSubmit={handleRedeemInvite} className="mt-8 space-y-4">
@@ -1120,10 +1502,10 @@ export default function App() {
       <header className="relative z-10 border-b border-[#e8e4d9] bg-[#fdfbf7]/60 backdrop-blur-xl">
         <div className="max-w-6xl mx-auto px-4 sm:px-6 py-3 flex items-center justify-between">
           <div className="flex items-center gap-3">
-            <div className="w-8 h-8 sm:w-10 sm:h-10 rounded-full border border-[#8b2b22]/30 flex items-center justify-center bg-gradient-to-br from-[#8b2b22]/10 to-transparent">
-              <span className="font-serif text-[#8b2b22] text-base sm:text-lg">爻</span>
+            <div className="flex h-8 w-8 items-center justify-center sm:h-10 sm:w-10">
+              <HeaderTaijiIcon />
             </div>
-            <h1 className="text-lg sm:text-xl font-serif tracking-[0.2em] text-stone-900">六爻起卦</h1>
+            <h1 className="text-lg sm:text-xl font-serif tracking-[0.2em] text-stone-900">易学</h1>
           </div>
           <div className="flex items-center gap-2">
             {showHistory ? (
@@ -1145,7 +1527,7 @@ export default function App() {
                       activePage === "cast" ? "bg-stone-900 text-[#fdfbf7]" : "text-stone-500 hover:text-stone-900",
                     )}
                   >
-                    起卦
+                    数术
                   </button>
                   <button
                     type="button"
@@ -1158,13 +1540,6 @@ export default function App() {
                     入门
                   </button>
                 </div>
-                <button 
-                  onClick={() => setShowHistory(true)}
-                  className="flex items-center gap-2 px-4 py-2 hover:bg-stone-200/50 rounded-full transition-colors text-stone-500 hover:text-stone-900 text-sm"
-                >
-                  <History className="w-4 h-4" />
-                  历史记录
-                </button>
                 <button
                   onClick={handleLogout}
                   className="px-4 py-2 hover:bg-stone-200/50 rounded-full transition-colors text-stone-500 hover:text-stone-900 text-sm"
@@ -1200,7 +1575,7 @@ export default function App() {
                   activePage === "cast" ? "bg-stone-900 text-[#fdfbf7]" : "text-stone-500",
                 )}
               >
-                起卦
+                数术
               </button>
               <button
                 type="button"
@@ -1216,6 +1591,53 @@ export default function App() {
 
             {activePage === "cast" ? (
               <>
+                <section className="max-w-5xl mx-auto">
+                  <div className="flex items-center justify-between gap-3">
+                    <div className="inline-flex rounded-full border border-stone-200 bg-white/75 p-1">
+                      <button
+                        type="button"
+                        onClick={() => handleSelectPractice("liuyao")}
+                        className={cn(
+                          "rounded-full px-4 py-2 text-sm transition-colors",
+                          activePractice === "liuyao" ? "bg-stone-900 text-[#fdfbf7]" : "text-stone-500 hover:text-stone-900",
+                        )}
+                      >
+                        六爻起卦
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => handleSelectPractice("bazi")}
+                        className={cn(
+                          "rounded-full px-4 py-2 text-sm transition-colors",
+                          activePractice === "bazi" ? "bg-stone-900 text-[#fdfbf7]" : "text-stone-500 hover:text-stone-900",
+                        )}
+                      >
+                        八字排盘
+                      </button>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        if (activePractice === "liuyao") {
+                          setShowHistory(true);
+                        }
+                      }}
+                      disabled={activePractice !== "liuyao"}
+                      className={cn(
+                        "inline-flex items-center gap-2 rounded-full border border-stone-200 px-4 py-2 text-sm transition-colors",
+                        activePractice === "liuyao"
+                          ? "bg-white/80 text-stone-600 hover:bg-stone-100 hover:text-stone-900"
+                          : "bg-white/50 text-stone-300 cursor-default",
+                      )}
+                    >
+                      <History className="w-4 h-4" />
+                      历史记录
+                    </button>
+                  </div>
+                </section>
+
+                {activePractice === "liuyao" ? (
+                <>
                 <section className="glass-panel rounded-3xl p-5 sm:p-6 lg:p-8 max-w-5xl mx-auto overflow-hidden relative">
                   <div className="absolute top-[-20%] right-[-5%] h-56 w-56 rounded-full bg-[#8b2b22]/8 blur-[110px] pointer-events-none" />
                   <div className="relative z-10">
@@ -1226,7 +1648,6 @@ export default function App() {
                     </p>
                   </div>
                 </section>
-
                 <section className="space-y-4 max-w-5xl mx-auto">
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4 sm:gap-6">
               {/* Input Section */}
@@ -1787,19 +2208,180 @@ export default function App() {
                   </motion.section>
                 )}
               </>
+                ) : (
+                  <>
+                  <section className="glass-panel rounded-3xl p-5 sm:p-6 lg:p-8 max-w-5xl mx-auto overflow-hidden relative">
+                    <div className="absolute top-[-20%] right-[-5%] h-56 w-56 rounded-full bg-[#8b2b22]/8 blur-[110px] pointer-events-none" />
+                    <div className="relative z-10">
+                      <p className="text-xs tracking-[0.35em] text-[#8b2b22]">BAZI</p>
+                      <h2 className="mt-3 text-2xl sm:text-3xl font-serif tracking-[0.18em] text-stone-900">八字排盘</h2>
+                      <p className="mt-4 max-w-2xl text-sm leading-7 text-stone-600 font-serif sm:text-base">
+                        根据命主信息、历法方式、出生时间与性别，直接排出四柱八字。
+                      </p>
+                    </div>
+                  </section>
+                  <section className="space-y-4 max-w-5xl mx-auto">
+                    <div className="grid gap-4 lg:grid-cols-[minmax(0,1.1fr)_minmax(0,0.9fr)]">
+                      <section className="glass-panel rounded-3xl p-5 sm:p-6">
+                        <div className="grid gap-4 sm:grid-cols-2">
+                          <label className="space-y-2 sm:col-span-2">
+                            <div className="text-xs tracking-[0.2em] text-stone-500">命主信息</div>
+                            <input
+                              value={baziName}
+                              onChange={(event) => setBaziName(event.target.value)}
+                              placeholder="例如：王某 / 小名 / 匿名命主"
+                              className="w-full rounded-2xl border border-stone-200 bg-white/70 px-4 py-3 font-serif text-stone-900 outline-none transition-all focus:border-[#8b2b22]/40 focus:ring-1 focus:ring-[#8b2b22]/40"
+                            />
+                          </label>
+
+                          <div className="space-y-2">
+                            <div className="text-xs tracking-[0.2em] text-stone-500">命主性别</div>
+                            <div className="flex rounded-2xl border border-stone-200 bg-white/70 p-1">
+                              <button
+                                type="button"
+                                onClick={() => setBaziGender("male")}
+                                className={cn("flex-1 rounded-xl px-4 py-2 text-sm transition-colors", baziGender === "male" ? "bg-stone-900 text-white" : "text-stone-500")}
+                              >
+                                男命
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => setBaziGender("female")}
+                                className={cn("flex-1 rounded-xl px-4 py-2 text-sm transition-colors", baziGender === "female" ? "bg-stone-900 text-white" : "text-stone-500")}
+                              >
+                                女命
+                              </button>
+                            </div>
+                          </div>
+
+                          <div className="space-y-2">
+                            <div className="text-xs tracking-[0.2em] text-stone-500">起盘方式</div>
+                            <div className="flex rounded-2xl border border-stone-200 bg-white/70 p-1">
+                              <button
+                                type="button"
+                                onClick={() => setBaziCalendarType("solar")}
+                                className={cn("flex-1 rounded-xl px-4 py-2 text-sm transition-colors", baziCalendarType === "solar" ? "bg-stone-900 text-white" : "text-stone-500")}
+                              >
+                                公历
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => setBaziCalendarType("lunar")}
+                                className={cn("flex-1 rounded-xl px-4 py-2 text-sm transition-colors", baziCalendarType === "lunar" ? "bg-stone-900 text-white" : "text-stone-500")}
+                              >
+                                农历
+                              </button>
+                            </div>
+                          </div>
+
+                          {baziCalendarType === "solar" ? (
+                            <div className="space-y-2 sm:col-span-2">
+                              <div className="text-xs tracking-[0.2em] text-stone-500">公历出生日期</div>
+                              <div className="grid grid-cols-4 gap-3">
+                                <WheelColumn label="年" value={solarPickerValue.year} options={SOLAR_YEAR_OPTIONS} onChange={(value) => updateSolarPicker({ year: value })} formatOption={(value) => `${value}年`} />
+                                <WheelColumn label="月" value={solarPickerValue.month} options={MONTH_OPTIONS} onChange={(value) => updateSolarPicker({ month: value })} formatOption={(value) => `${value}月`} />
+                                <WheelColumn label="日" value={solarPickerValue.day} options={solarDayOptions} onChange={(value) => updateSolarPicker({ day: value })} formatOption={(value) => `${value}日`} />
+                                <TimeWheelPicker hour={timePickerValue.hour} onHourChange={(value) => updateTimePicker({ hour: value })} />
+                              </div>
+                            </div>
+                          ) : (
+                            <>
+                              <div className="space-y-2 sm:col-span-2">
+                                <div className="text-xs tracking-[0.2em] text-stone-500">农历出生日期</div>
+                                <div className="grid grid-cols-4 gap-3">
+                                  <WheelColumn label="年" value={lunarPickerValue.year} options={LUNAR_YEAR_OPTIONS} onChange={(value) => setBaziLunarYear(String(value))} formatOption={(value) => `${value}年`} />
+                                  <WheelColumn label="月" value={lunarPickerValue.month} options={MONTH_OPTIONS} onChange={(value) => setBaziLunarMonth(String(value))} formatOption={(value) => `${value}月`} />
+                                  <WheelColumn label="日" value={lunarPickerValue.day} options={DAY_OPTIONS.slice(0, 30)} onChange={(value) => setBaziLunarDay(String(value))} formatOption={(value) => `${value}日`} />
+                                  <TimeWheelPicker hour={timePickerValue.hour} onHourChange={(value) => updateTimePicker({ hour: value })} />
+                                </div>
+                              </div>
+                              <label className="inline-flex items-center gap-3 rounded-2xl border border-stone-200 bg-white/70 px-4 py-3 text-sm text-stone-700">
+                                <input
+                                  type="checkbox"
+                                  checked={baziLeapMonth}
+                                  onChange={(event) => setBaziLeapMonth(event.target.checked)}
+                                  className="h-4 w-4 rounded border-stone-300 text-[#8b2b22] focus:ring-[#8b2b22]/40"
+                                />
+                                该月为闰月
+                              </label>
+                            </>
+                          )}
+
+                        </div>
+                      </section>
+
+                      <section className="glass-panel rounded-3xl p-5 sm:p-6 flex flex-col justify-between">
+                        <div>
+                          <div className="text-xs tracking-[0.25em] text-[#8b2b22]">INPUT NOTE</div>
+                          <h3 className="mt-2 text-xl font-serif tracking-[0.16em] text-stone-900">录入说明</h3>
+                          <div className="mt-4 space-y-3 text-sm leading-7 text-stone-600">
+                            <p>起盘方式按“公历 / 农历”录入。你原始需求里写了“农历或阴历”，两者是同义词，因此这里按实际可用的双模式实现。</p>
+                            <p>农历模式会先换算为公历，再按北京时间排四柱。</p>
+                            <p>如果出生时刻刚好贴近节气或子时换日，建议以专业万年历再交叉核一次。</p>
+                          </div>
+                        </div>
+
+                        <div className="mt-6">
+                          {baziError && <p className="mb-3 text-sm text-[#8b2b22]">{baziError}</p>}
+                          <button
+                            type="button"
+                            onClick={handleGenerateBazi}
+                            className="inline-flex items-center justify-center gap-3 rounded-2xl bg-stone-900 px-6 py-3 text-white transition-all hover:bg-stone-800"
+                          >
+                            <Sparkles className="h-4 w-4" strokeWidth={1.5} />
+                            开始排盘
+                          </button>
+                        </div>
+                      </section>
+                    </div>
+
+                    {baziChart && <BaziChartView chart={baziChart} />}
+                  </section>
+                  </>
+                )}
+              </>
             ) : (
               <>
+                <section className="max-w-5xl mx-auto">
+                  <div className="inline-flex rounded-full border border-stone-200 bg-white/75 p-1">
+                    <button
+                      type="button"
+                      onClick={() => setActiveGuide("liuyao")}
+                      className={cn(
+                        "rounded-full px-4 py-2 text-sm transition-colors",
+                        activeGuide === "liuyao" ? "bg-stone-900 text-[#fdfbf7]" : "text-stone-500 hover:text-stone-900",
+                      )}
+                    >
+                      起卦入门
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setActiveGuide("bazi")}
+                      className={cn(
+                        "rounded-full px-4 py-2 text-sm transition-colors",
+                        activeGuide === "bazi" ? "bg-stone-900 text-[#fdfbf7]" : "text-stone-500 hover:text-stone-900",
+                      )}
+                    >
+                      排盘入门
+                    </button>
+                  </div>
+                </section>
+
                 <section className="glass-panel rounded-3xl p-5 sm:p-6 lg:p-8 max-w-5xl mx-auto overflow-hidden relative">
                   <div className="absolute top-[-20%] right-[-5%] h-56 w-56 rounded-full bg-stone-500/8 blur-[110px] pointer-events-none" />
                   <div className="relative z-10">
                     <p className="text-xs tracking-[0.35em] text-[#8b2b22]">GUIDE</p>
-                    <h2 className="mt-3 text-2xl sm:text-3xl font-serif tracking-[0.18em] text-stone-900">六爻入门</h2>
+                    <h2 className="mt-3 text-2xl sm:text-3xl font-serif tracking-[0.18em] text-stone-900">
+                      {activeGuide === "liuyao" ? "六爻入门" : "八字入门"}
+                    </h2>
                     <p className="mt-4 max-w-2xl text-sm leading-7 text-stone-600 font-serif sm:text-base">
-                      本教程包含六爻最关键的基础概念。提问和摇卦可点击导航栏“起卦”。
+                      {activeGuide === "liuyao"
+                        ? "本教程包含六爻最关键的基础概念。提问和摇卦可点击导航栏“数术”。"
+                        : "本教程包含八字排盘最基础的阅读方式，先建立四柱与五行的基本认识。"}
                     </p>
                   </div>
                 </section>
-                {basicsSection}
+                {activeGuide === "liuyao" ? basicsSection : baziBasicsSection}
               </>
             )}
           </>
