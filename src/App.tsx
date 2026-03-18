@@ -2216,112 +2216,97 @@ export default function App() {
                       <p className="text-xs tracking-[0.35em] text-[#8b2b22]">BAZI</p>
                       <h2 className="mt-3 text-2xl sm:text-3xl font-serif tracking-[0.18em] text-stone-900">八字排盘</h2>
                       <p className="mt-4 max-w-2xl text-sm leading-7 text-stone-600 font-serif sm:text-base">
-                        根据命主信息、历法方式、出生时间与性别，直接排出四柱八字。
+                        根据命主信息、历法方式、出生日期与时段直接排出四柱八字。农历模式会先换算为公历，节气交界与子时换日附近建议再复核一次。
                       </p>
                     </div>
                   </section>
                   <section className="space-y-4 max-w-5xl mx-auto">
-                    <div className="grid gap-4 lg:grid-cols-[minmax(0,1.1fr)_minmax(0,0.9fr)]">
-                      <section className="glass-panel rounded-3xl p-5 sm:p-6">
-                        <div className="grid gap-4 sm:grid-cols-2">
-                          <label className="space-y-2 sm:col-span-2">
-                            <div className="text-xs tracking-[0.2em] text-stone-500">命主信息</div>
-                            <input
-                              value={baziName}
-                              onChange={(event) => setBaziName(event.target.value)}
-                              placeholder="例如：王某 / 小名 / 匿名命主"
-                              className="w-full rounded-2xl border border-stone-200 bg-white/70 px-4 py-3 font-serif text-stone-900 outline-none transition-all focus:border-[#8b2b22]/40 focus:ring-1 focus:ring-[#8b2b22]/40"
-                            />
-                          </label>
+                    <section className="glass-panel rounded-3xl p-5 sm:p-6">
+                      <div className="grid gap-4 sm:grid-cols-2">
+                        <label className="space-y-2 sm:col-span-2">
+                          <div className="text-xs tracking-[0.2em] text-stone-500">命主信息</div>
+                          <input
+                            value={baziName}
+                            onChange={(event) => setBaziName(event.target.value)}
+                            placeholder="例如：王某 / 小名 / 匿名命主"
+                            className="w-full rounded-2xl border border-stone-200 bg-white/70 px-4 py-3 font-serif text-stone-900 outline-none transition-all focus:border-[#8b2b22]/40 focus:ring-1 focus:ring-[#8b2b22]/40"
+                          />
+                        </label>
 
-                          <div className="space-y-2">
-                            <div className="text-xs tracking-[0.2em] text-stone-500">命主性别</div>
-                            <div className="flex rounded-2xl border border-stone-200 bg-white/70 p-1">
-                              <button
-                                type="button"
-                                onClick={() => setBaziGender("male")}
-                                className={cn("flex-1 rounded-xl px-4 py-2 text-sm transition-colors", baziGender === "male" ? "bg-stone-900 text-white" : "text-stone-500")}
-                              >
-                                男命
-                              </button>
-                              <button
-                                type="button"
-                                onClick={() => setBaziGender("female")}
-                                className={cn("flex-1 rounded-xl px-4 py-2 text-sm transition-colors", baziGender === "female" ? "bg-stone-900 text-white" : "text-stone-500")}
-                              >
-                                女命
-                              </button>
+                        <div className="space-y-2">
+                          <div className="text-xs tracking-[0.2em] text-stone-500">命主性别</div>
+                          <div className="flex rounded-2xl border border-stone-200 bg-white/70 p-1">
+                            <button
+                              type="button"
+                              onClick={() => setBaziGender("male")}
+                              className={cn("flex-1 rounded-xl px-4 py-2 text-sm transition-colors", baziGender === "male" ? "bg-stone-900 text-white" : "text-stone-500")}
+                            >
+                              男命
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => setBaziGender("female")}
+                              className={cn("flex-1 rounded-xl px-4 py-2 text-sm transition-colors", baziGender === "female" ? "bg-stone-900 text-white" : "text-stone-500")}
+                            >
+                              女命
+                            </button>
+                          </div>
+                        </div>
+
+                        <div className="space-y-2">
+                          <div className="text-xs tracking-[0.2em] text-stone-500">起盘方式</div>
+                          <div className="flex rounded-2xl border border-stone-200 bg-white/70 p-1">
+                            <button
+                              type="button"
+                              onClick={() => setBaziCalendarType("solar")}
+                              className={cn("flex-1 rounded-xl px-4 py-2 text-sm transition-colors", baziCalendarType === "solar" ? "bg-stone-900 text-white" : "text-stone-500")}
+                            >
+                              公历
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => setBaziCalendarType("lunar")}
+                              className={cn("flex-1 rounded-xl px-4 py-2 text-sm transition-colors", baziCalendarType === "lunar" ? "bg-stone-900 text-white" : "text-stone-500")}
+                            >
+                              农历
+                            </button>
+                          </div>
+                        </div>
+
+                        {baziCalendarType === "solar" ? (
+                          <div className="space-y-2 sm:col-span-2">
+                            <div className="text-xs tracking-[0.2em] text-stone-500">公历出生日期</div>
+                            <div className="grid grid-cols-4 gap-3">
+                              <WheelColumn label="年" value={solarPickerValue.year} options={SOLAR_YEAR_OPTIONS} onChange={(value) => updateSolarPicker({ year: value })} formatOption={(value) => `${value}年`} />
+                              <WheelColumn label="月" value={solarPickerValue.month} options={MONTH_OPTIONS} onChange={(value) => updateSolarPicker({ month: value })} formatOption={(value) => `${value}月`} />
+                              <WheelColumn label="日" value={solarPickerValue.day} options={solarDayOptions} onChange={(value) => updateSolarPicker({ day: value })} formatOption={(value) => `${value}日`} />
+                              <TimeWheelPicker hour={timePickerValue.hour} onHourChange={(value) => updateTimePicker({ hour: value })} />
                             </div>
                           </div>
-
-                          <div className="space-y-2">
-                            <div className="text-xs tracking-[0.2em] text-stone-500">起盘方式</div>
-                            <div className="flex rounded-2xl border border-stone-200 bg-white/70 p-1">
-                              <button
-                                type="button"
-                                onClick={() => setBaziCalendarType("solar")}
-                                className={cn("flex-1 rounded-xl px-4 py-2 text-sm transition-colors", baziCalendarType === "solar" ? "bg-stone-900 text-white" : "text-stone-500")}
-                              >
-                                公历
-                              </button>
-                              <button
-                                type="button"
-                                onClick={() => setBaziCalendarType("lunar")}
-                                className={cn("flex-1 rounded-xl px-4 py-2 text-sm transition-colors", baziCalendarType === "lunar" ? "bg-stone-900 text-white" : "text-stone-500")}
-                              >
-                                农历
-                              </button>
-                            </div>
-                          </div>
-
-                          {baziCalendarType === "solar" ? (
+                        ) : (
+                          <>
                             <div className="space-y-2 sm:col-span-2">
-                              <div className="text-xs tracking-[0.2em] text-stone-500">公历出生日期</div>
+                              <div className="text-xs tracking-[0.2em] text-stone-500">农历出生日期</div>
                               <div className="grid grid-cols-4 gap-3">
-                                <WheelColumn label="年" value={solarPickerValue.year} options={SOLAR_YEAR_OPTIONS} onChange={(value) => updateSolarPicker({ year: value })} formatOption={(value) => `${value}年`} />
-                                <WheelColumn label="月" value={solarPickerValue.month} options={MONTH_OPTIONS} onChange={(value) => updateSolarPicker({ month: value })} formatOption={(value) => `${value}月`} />
-                                <WheelColumn label="日" value={solarPickerValue.day} options={solarDayOptions} onChange={(value) => updateSolarPicker({ day: value })} formatOption={(value) => `${value}日`} />
+                                <WheelColumn label="年" value={lunarPickerValue.year} options={LUNAR_YEAR_OPTIONS} onChange={(value) => setBaziLunarYear(String(value))} formatOption={(value) => `${value}年`} />
+                                <WheelColumn label="月" value={lunarPickerValue.month} options={MONTH_OPTIONS} onChange={(value) => setBaziLunarMonth(String(value))} formatOption={(value) => `${value}月`} />
+                                <WheelColumn label="日" value={lunarPickerValue.day} options={DAY_OPTIONS.slice(0, 30)} onChange={(value) => setBaziLunarDay(String(value))} formatOption={(value) => `${value}日`} />
                                 <TimeWheelPicker hour={timePickerValue.hour} onHourChange={(value) => updateTimePicker({ hour: value })} />
                               </div>
                             </div>
-                          ) : (
-                            <>
-                              <div className="space-y-2 sm:col-span-2">
-                                <div className="text-xs tracking-[0.2em] text-stone-500">农历出生日期</div>
-                                <div className="grid grid-cols-4 gap-3">
-                                  <WheelColumn label="年" value={lunarPickerValue.year} options={LUNAR_YEAR_OPTIONS} onChange={(value) => setBaziLunarYear(String(value))} formatOption={(value) => `${value}年`} />
-                                  <WheelColumn label="月" value={lunarPickerValue.month} options={MONTH_OPTIONS} onChange={(value) => setBaziLunarMonth(String(value))} formatOption={(value) => `${value}月`} />
-                                  <WheelColumn label="日" value={lunarPickerValue.day} options={DAY_OPTIONS.slice(0, 30)} onChange={(value) => setBaziLunarDay(String(value))} formatOption={(value) => `${value}日`} />
-                                  <TimeWheelPicker hour={timePickerValue.hour} onHourChange={(value) => updateTimePicker({ hour: value })} />
-                                </div>
-                              </div>
-                              <label className="inline-flex items-center gap-3 rounded-2xl border border-stone-200 bg-white/70 px-4 py-3 text-sm text-stone-700">
-                                <input
-                                  type="checkbox"
-                                  checked={baziLeapMonth}
-                                  onChange={(event) => setBaziLeapMonth(event.target.checked)}
-                                  className="h-4 w-4 rounded border-stone-300 text-[#8b2b22] focus:ring-[#8b2b22]/40"
-                                />
-                                该月为闰月
-                              </label>
-                            </>
-                          )}
+                            <label className="inline-flex items-center gap-3 rounded-2xl border border-stone-200 bg-white/70 px-4 py-3 text-sm text-stone-700">
+                              <input
+                                type="checkbox"
+                                checked={baziLeapMonth}
+                                onChange={(event) => setBaziLeapMonth(event.target.checked)}
+                                className="h-4 w-4 rounded border-stone-300 text-[#8b2b22] focus:ring-[#8b2b22]/40"
+                              />
+                              该月为闰月
+                            </label>
+                          </>
+                        )}
 
-                        </div>
-                      </section>
-
-                      <section className="glass-panel rounded-3xl p-5 sm:p-6 flex flex-col justify-between">
-                        <div>
-                          <div className="text-xs tracking-[0.25em] text-[#8b2b22]">INPUT NOTE</div>
-                          <h3 className="mt-2 text-xl font-serif tracking-[0.16em] text-stone-900">录入说明</h3>
-                          <div className="mt-4 space-y-3 text-sm leading-7 text-stone-600">
-                            <p>起盘方式按“公历 / 农历”录入。你原始需求里写了“农历或阴历”，两者是同义词，因此这里按实际可用的双模式实现。</p>
-                            <p>农历模式会先换算为公历，再按北京时间排四柱。</p>
-                            <p>如果出生时刻刚好贴近节气或子时换日，建议以专业万年历再交叉核一次。</p>
-                          </div>
-                        </div>
-
-                        <div className="mt-6">
+                        <div className="sm:col-span-2">
                           {baziError && <p className="mb-3 text-sm text-[#8b2b22]">{baziError}</p>}
                           <button
                             type="button"
@@ -2332,8 +2317,8 @@ export default function App() {
                             开始排盘
                           </button>
                         </div>
-                      </section>
-                    </div>
+                      </div>
+                    </section>
 
                     {baziChart && <BaziChartView chart={baziChart} />}
                   </section>
