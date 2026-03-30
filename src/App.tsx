@@ -1456,39 +1456,49 @@ export default function App() {
       <div className="min-h-screen bg-[#f4f1ea] paper-texture text-stone-800 px-4 py-8 sm:px-6">
         <div className="max-w-3xl mx-auto min-h-[calc(100vh-4rem)] flex items-center">
           <div className="glass-panel rounded-[2rem] p-6 sm:p-8 lg:p-10 w-full relative overflow-hidden">
-            <div className="absolute top-[-10%] right-[-5%] w-48 h-48 rounded-full bg-[#8b2b22]/10 blur-[100px] pointer-events-none" />
-            <div className="max-w-xl">
-              <p className="text-xs tracking-[0.45em] text-[#8b2b22] mb-4">INVITE ONLY</p>
-              <h1 className="text-3xl sm:text-4xl font-serif tracking-[0.2em] text-stone-900">易学</h1>
-              <p className="mt-4 text-sm sm:text-base leading-8 text-stone-600 font-serif">
-                当前站点已开启邀请码访问控制。输入有效邀请码后，才可进入六爻起卦与八字排盘流程。
-              </p>
+              <div className="absolute top-[-10%] right-[-5%] w-48 h-48 rounded-full bg-[#8b2b22]/10 blur-[100px] pointer-events-none" />
+              <div className="max-w-xl">
+                <p className="text-xs tracking-[0.45em] text-[#8b2b22] mb-4">INVITE ONLY</p>
+                <h1 className="text-3xl sm:text-4xl font-serif tracking-[0.2em] text-stone-900">易学</h1>
+                <p className="mt-4 text-sm sm:text-base leading-8 text-stone-600 font-serif">
+                  当前站点已开启邀请码访问控制。输入有效邀请码后，才可进入六爻起卦与八字排盘流程。
+                </p>
 
-              <form onSubmit={handleRedeemInvite} className="mt-8 space-y-4">
-                <label htmlFor="inviteCode" className="block text-xs tracking-[0.3em] text-stone-500">
-                  邀请码
-                </label>
-                <input
-                  id="inviteCode"
-                  value={inviteCode}
-                  onChange={(event) => setInviteCode(event.target.value)}
-                  placeholder="请输入邀请码"
-                  className="w-full rounded-2xl border border-stone-200 bg-white/80 px-5 py-4 text-lg font-serif outline-none transition-all focus:border-[#8b2b22]/40 focus:ring-1 focus:ring-[#8b2b22]/40"
-                  autoComplete="one-time-code"
-                />
-                {authError && <p className="text-sm text-[#8b2b22]">{authError}</p>}
-                <button
-                  type="submit"
-                  disabled={isRedeemingInvite}
-                  className="inline-flex items-center justify-center gap-3 rounded-2xl bg-stone-900 px-6 py-4 text-[#fdfbf7] transition-all hover:bg-stone-800 disabled:opacity-70"
-                >
-                  {isRedeemingInvite ? <Loader2 className="w-5 h-5 animate-spin" /> : <Sparkles className="w-5 h-5" strokeWidth={1.5} />}
-                  验证邀请码
-                </button>
-              </form>
+                <form onSubmit={handleRedeemInvite} className="mt-8 space-y-4">
+                  <label htmlFor="inviteCode" className="block text-xs tracking-[0.3em] text-stone-500">
+                    邀请码
+                  </label>
+                  <input
+                    id="inviteCode"
+                    value={inviteCode}
+                    onChange={(event) => setInviteCode(event.target.value)}
+                    placeholder="请输入邀请码"
+                    className="w-full rounded-2xl border border-stone-200 bg-white/80 px-5 py-4 text-lg font-serif outline-none transition-all focus:border-[#8b2b22]/40 focus:ring-1 focus:ring-[#8b2b22]/40"
+                    autoComplete="one-time-code"
+                  />
+                  {authError && <p className="text-sm text-[#8b2b22]">{authError}</p>}
+                  <button
+                    type="submit"
+                    disabled={isRedeemingInvite}
+                    className="inline-flex items-center justify-center gap-3 rounded-2xl bg-stone-900 px-6 py-4 text-[#fdfbf7] transition-all hover:bg-stone-800 disabled:opacity-70"
+                  >
+                    {isRedeemingInvite ? <Loader2 className="w-5 h-5 animate-spin" /> : <Sparkles className="w-5 h-5" strokeWidth={1.5} />}
+                    验证邀请码
+                  </button>
+                </form>
+                <div className="mt-8 border-t border-stone-200/80 pt-4 text-center text-xs text-stone-500">
+                  <a
+                    href="https://beian.miit.gov.cn/#/Integrated/index"
+                    target="_blank"
+                    rel="noreferrer"
+                    className="transition-colors hover:text-[#8b2b22]"
+                  >
+                    蜀ICP备19013278号-1 - 网站信息
+                  </a>
+                </div>
+              </div>
             </div>
           </div>
-        </div>
       </div>
     );
   }
@@ -2373,6 +2383,19 @@ export default function App() {
         )}
 
       </main>
+
+      <footer className="relative z-10 mx-auto max-w-6xl px-4 pb-8 text-center text-xs text-stone-500 sm:px-6 lg:px-8">
+        <div className="border-t border-stone-200/80 pt-4">
+          <a
+            href="https://beian.miit.gov.cn/#/Integrated/index"
+            target="_blank"
+            rel="noreferrer"
+            className="transition-colors hover:text-[#8b2b22]"
+          >
+            蜀ICP备19013278号-1 - 网站信息
+          </a>
+        </div>
+      </footer>
     </div>
   );
 }
